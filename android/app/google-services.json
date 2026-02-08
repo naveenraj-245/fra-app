@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "860721395575",
+    "project_id": "ai-powered-fra",
+    "storage_bucket": "ai-powered-fra.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:860721395575:android:ae462b6ef9ab3ae8e5d372",
+        "android_client_info": {
+          "package_name": "com.example.app_2"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyC8Hpy4qWU43OLjH67iTz6oT42sbccs_kk"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
