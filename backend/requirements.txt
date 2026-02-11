@@ -1,0 +1,3 @@
+firebase-admin
+earthengine-api
+google-api-python-client

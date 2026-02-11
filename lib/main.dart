@@ -1,46 +1,61 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
-import 'package:firebase_auth/firebase_auth.dart';
+import 'package:provider/provider.dart';
+import 'package:flutter_localizations/flutter_localizations.dart';
 import 'firebase_options.dart';
+import 'language_provider.dart';
 import 'features/auth/role_selection_screen.dart';
-import 'features/dashboard/dweller_dashboard.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  
   await Firebase.initializeApp(
     options: DefaultFirebaseOptions.currentPlatform,
   );
-  runApp(const MyApp());
+
+  runApp(
+    
+    MultiProvider(
+      providers: [
+        ChangeNotifierProvider(create: (_) => LanguageProvider()),
+      ],
+      child: const SatyaShieldApp(),
+    ),
+  );
 }
 
-class MyApp extends StatelessWidget {
-  const MyApp({super.key});
+class SatyaShieldApp extends StatelessWidget {
+  const SatyaShieldApp({super.key});
 
   @override
   Widget build(BuildContext context) {
+    
+    final languageProvider = Provider.of<LanguageProvider>(context);
+
     return MaterialApp(
+      title: 'Satya-Shield',
       debugShowCheckedModeBanner: false,
-      title: 'FRA Atlas',
+      
       theme: ThemeData(
-        colorScheme: ColorScheme.fromSeed(seedColor: const Color(0xFF1B5E20)),
+        primarySwatch: Colors.green,
         useMaterial3: true,
+        scaffoldBackgroundColor: const Color(0xFFF9FAFB), // light gray-50
       ),
-      // This StreamBuilder checks the login status automatically
-      home: StreamBuilder<User?>(
-        stream: FirebaseAuth.instance.authStateChanges(),
-        builder: (context, snapshot) {
-          // 1. If Firebase is still checking, show a loader
-          if (snapshot.connectionState == ConnectionState.waiting) {
-            return const Scaffold(body: Center(child: CircularProgressIndicator()));
-          }
-          // 2. If a user exists in the "snapshot", go to Dashboard
-          if (snapshot.hasData) {
-            return const DwellerDashboard();
-          }
-          // 3. Otherwise, show the Role Selection (Login)
-          return const RoleSelectionScreen();
-        },
-      ),
+
+      locale: languageProvider.currentLocale,
+      supportedLocales: const [
+        Locale('en'), 
+        Locale('ta'), 
+        Locale('hi'), 
+      ],
+      localizationsDelegates: const [
+        GlobalMaterialLocalizations.delegate,
+        GlobalWidgetsLocalizations.delegate,
+        GlobalCupertinoLocalizations.delegate,
+      ],
+
+      // Entry point: The "Who are you?" screen
+      home: const RoleSelectionScreen(),
     );
   }
 }

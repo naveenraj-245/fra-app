@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
 import '../../services/auth_service.dart';
-import '../dashboard/dweller_dashboard.dart';
+import '../dashboard/dweller_dashboard.dart'; // Green Dashboard
+import '../../screens/officer/officer_dashboard.dart';   // Blue Dashboard
+import '../../screens/signup_screen.dart';                  // Registration Screen
 
 class LoginScreen extends StatefulWidget {
-  final String userRole; // Stores if the user is a dweller, officer, or ngo
+  final String userRole; // 'officer' or 'dweller' (Determines the Theme Color)
 
   const LoginScreen({super.key, required this.userRole});
 
@@ -15,7 +17,7 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
   late TabController _tabController;
   final AuthService _auth = AuthService();
 
-  // Text Controllers to capture input
+  // Text Controllers
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
   final _phoneController = TextEditingController();
@@ -39,11 +41,15 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
 
   @override
   Widget build(BuildContext context) {
+    // Determine Color Theme based on the requested Role
+    final bool isOfficer = widget.userRole == 'officer';
+    final Color themeColor = isOfficer ? const Color(0xFF0D47A1) : const Color(0xFF1B5E20);
+
     return Scaffold(
       backgroundColor: Colors.white,
       appBar: AppBar(
-        title: Text("Login: ${widget.userRole}"),
-        backgroundColor: const Color(0xFF1B5E20),
+        title: Text("${widget.userRole.toUpperCase()} Login"),
+        backgroundColor: themeColor,
         foregroundColor: Colors.white,
         bottom: TabBar(
           controller: _tabController,
@@ -59,24 +65,24 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
       body: TabBarView(
         controller: _tabController,
         children: [
-          // TAB 1: Phone Login (Currently a UI Demo)
-          _buildPhoneTab(),
+          // TAB 1: Phone Login
+          _buildPhoneTab(themeColor),
           
-          // TAB 2: Email Login (Fully Functional with Firebase)
-          _buildEmailTab(),
+          // TAB 2: Email Login
+          _buildEmailTab(themeColor, isOfficer),
         ],
       ),
     );
   }
 
   // --- UI: Phone Login Tab ---
-  Widget _buildPhoneTab() {
+  Widget _buildPhoneTab(Color color) {
     return Padding(
       padding: const EdgeInsets.all(25.0),
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          const Icon(Icons.phone_android, size: 80, color: Color(0xFF1B5E20)),
+          Icon(Icons.phone_android, size: 80, color: color),
           const SizedBox(height: 20),
           const Text(
             "Enter Mobile Number", 
@@ -97,14 +103,14 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
           ElevatedButton(
             style: ElevatedButton.styleFrom(
               minimumSize: const Size(double.infinity, 50),
-              backgroundColor: const Color(0xFF1B5E20),
+              backgroundColor: color,
               foregroundColor: Colors.white,
             ),
             onPressed: () {
-              // Temporary bypass until SHA-1 is set up for Phone Auth
+              // Demo Mode: Direct Login for Phone (Skip Auth for now)
               Navigator.pushReplacement(
                 context, 
-                MaterialPageRoute(builder: (context) => const DwellerDashboard())
+                MaterialPageRoute(builder: (_) => const DwellerDashboard())
               );
             },
             child: const Text("Send OTP (Demo Mode)"),
@@ -115,20 +121,21 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
   }
 
   // --- UI: Email Login Tab ---
-  Widget _buildEmailTab() {
+  Widget _buildEmailTab(Color color, bool isOfficer) {
     return SingleChildScrollView(
       padding: const EdgeInsets.all(25.0),
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
           const SizedBox(height: 40),
-          const Icon(Icons.admin_panel_settings, size: 80, color: Color(0xFF1B5E20)),
+          Icon(Icons.admin_panel_settings, size: 80, color: color),
           const SizedBox(height: 20),
           Text(
             "${widget.userRole.toUpperCase()} Login", 
             style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)
           ),
           const SizedBox(height: 20),
+          
           // Email Field
           TextField(
             controller: _emailController,
@@ -140,6 +147,7 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
             ),
           ),
           const SizedBox(height: 15),
+          
           // Password Field
           TextField(
             controller: _passwordController,
@@ -153,7 +161,7 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
           const SizedBox(height: 25),
           
           if (_isLoading)
-            const CircularProgressIndicator()
+            CircularProgressIndicator(color: color)
           else
             Column(
               children: [
@@ -161,19 +169,26 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
                 ElevatedButton(
                   style: ElevatedButton.styleFrom(
                     minimumSize: const Size(double.infinity, 50),
-                    backgroundColor: const Color(0xFF1B5E20),
+                    backgroundColor: color,
                     foregroundColor: Colors.white,
                   ),
-                  onPressed: () => _handleEmailAuth(isLogin: true),
+                  onPressed: _handleLogin,
                   child: const Text("Login"),
                 ),
                 const SizedBox(height: 15),
                 
-                // REGISTER BUTTON
-                TextButton(
-                  onPressed: () => _handleEmailAuth(isLogin: false),
-                  child: const Text("New User? Register Here", style: TextStyle(color: Colors.green)),
-                ),
+                // REGISTER BUTTON (Only show for Dwellers)
+                // Officers are usually pre-registered by Admins
+                if (!isOfficer)
+                  TextButton(
+                    onPressed: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(builder: (context) => const SignUpScreen()),
+                      );
+                    },
+                    child: Text("New User? Register Here", style: TextStyle(color: color)),
+                  ),
               ],
             ),
         ],
@@ -181,12 +196,12 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
     );
   }
 
-  // --- LOGIC: Handle Firebase Email Authentication ---
-  Future<void> _handleEmailAuth({required bool isLogin}) async {
-    // 1. Validate inputs aren't empty
+  // --- LOGIC: Handle Firebase Login ---
+  Future<void> _handleLogin() async {
+    // 1. Validate inputs
     if (_emailController.text.isEmpty || _passwordController.text.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Please fill in all fields")),
+        const SnackBar(content: Text("Please enter email and password")),
       );
       return;
     }
@@ -194,34 +209,28 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
     setState(() => _isLoading = true);
     
     try {
-      if (isLogin) {
-        // Sign In using .trim() to fix the "badly formatted" error
-        await _auth.signIn(
-          email: _emailController.text.trim(), 
-          password: _passwordController.text.trim()
-        );
-      } else {
-        // Register new account
-        await _auth.signUp(
-          email: _emailController.text.trim(), 
-          password: _passwordController.text.trim()
-        );
+      // 2. Sign In & Get Role from Database
+      // The AuthService checks Firestore to see if you are 'officer' or 'dweller'
+      String? role = await _auth.signIn(
+        email: _emailController.text.trim(), 
+        password: _passwordController.text.trim()
+      );
+
+      if (mounted) {
+         // 3. Navigate based on Database Role (Security Check)
+         if (role == 'officer') {
+           Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => const OfficerDashboard()));
+         } else {
+           Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => const DwellerDashboard()));
+         }
       }
 
-      // If successful, the Auth Gate in main.dart will handle navigation,
-      // but we add this for extra safety.
-      if (mounted) {
-        Navigator.pushReplacement(
-          context, 
-          MaterialPageRoute(builder: (context) => const DwellerDashboard())
-        );
-      }
     } catch (e) {
-      // Show Error (like "invalid-email" or "wrong-password")
+      // Handle Errors
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text("Error: ${e.toString()}"), 
+            content: Text(e.toString().replaceAll('Exception:', '').trim()), 
             backgroundColor: Colors.red,
           ),
         );

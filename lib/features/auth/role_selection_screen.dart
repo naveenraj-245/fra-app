@@ -1,27 +1,28 @@
 import 'package:flutter/material.dart';
-import 'login_screen.dart'; // We will create this next
+import 'package:provider/provider.dart';
+import '../../language_provider.dart';
+import 'login_screen.dart';
 
 class RoleSelectionScreen extends StatelessWidget {
   const RoleSelectionScreen({super.key});
 
   @override
   Widget build(BuildContext context) {
+    // 1. Access the translation helper
+    final lang = Provider.of<LanguageProvider>(context);
+
     return Scaffold(
-      backgroundColor: const Color(0xFFF5F5F5), // Light grey background
+      backgroundColor: const Color(0xFFF5F5F5),
       appBar: AppBar(
         title: const Text("Satya-Shield"),
         centerTitle: true,
-        backgroundColor: const Color(0xFF1B5E20), // Forest Green
+        backgroundColor: const Color(0xFF1B5E20),
         foregroundColor: Colors.white,
         actions: [
+          // 2. Updated Language Button
           IconButton(
             icon: const Icon(Icons.language),
-            onPressed: () {
-              // We will add language logic later
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text("Language settings coming soon!")),
-              );
-            },
+            onPressed: () => _showLanguagePicker(context),
           ),
         ],
       ),
@@ -30,23 +31,22 @@ class RoleSelectionScreen extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            const Text(
-              "Who are you?",
-              style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
+            Text(
+              lang.translate('who_are_you'), // Translated
+              style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
               textAlign: TextAlign.center,
             ),
             const SizedBox(height: 10),
-            const Text(
-              "Select your role to continue.",
-              style: TextStyle(fontSize: 16, color: Colors.grey),
+            Text(
+              lang.translate('select_role'), // Translated
+              style: const TextStyle(fontSize: 16, color: Colors.grey),
               textAlign: TextAlign.center,
             ),
             const SizedBox(height: 30),
             
-            // 1. Forest Dweller Card
             _buildRoleCard(
               context,
-              title: "Forest Dweller",
+              title: lang.translate('dweller'), // Translated
               icon: Icons.person_pin_circle,
               color: Colors.green.shade700,
               onTap: () => _navigateToLogin(context, "dweller"),
@@ -54,10 +54,9 @@ class RoleSelectionScreen extends StatelessWidget {
             
             const SizedBox(height: 20),
 
-            // 2. Government Officer Card
             _buildRoleCard(
               context,
-              title: "Govt. Officer",
+              title: lang.translate('officer'), // Translated
               icon: Icons.admin_panel_settings,
               color: Colors.blue.shade800,
               onTap: () => _navigateToLogin(context, "officer"),
@@ -65,10 +64,9 @@ class RoleSelectionScreen extends StatelessWidget {
 
             const SizedBox(height: 20),
 
-            // 3. NGO / Social Worker Card
             _buildRoleCard(
               context,
-              title: "NGO / Social Worker",
+              title: lang.translate('ngo'), // Translated
               icon: Icons.volunteer_activism,
               color: Colors.orange.shade800,
               onTap: () => _navigateToLogin(context, "ngo"),
@@ -76,6 +74,41 @@ class RoleSelectionScreen extends StatelessWidget {
           ],
         ),
       ),
+    );
+  }
+
+  // 3. Language Picker Logic
+  void _showLanguagePicker(BuildContext context) {
+    showModalBottomSheet(
+      context: context,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (context) {
+        final lp = Provider.of<LanguageProvider>(context, listen: false);
+        return Padding(
+          padding: const EdgeInsets.symmetric(vertical: 20),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Text("Select Language", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+              const Divider(),
+              ListTile(
+                title: const Text("English"),
+                onTap: () { lp.changeLanguage('en'); Navigator.pop(context); },
+              ),
+              ListTile(
+                title: const Text("தமிழ் (Tamil)"),
+                onTap: () { lp.changeLanguage('ta'); Navigator.pop(context); },
+              ),
+              ListTile(
+                title: const Text("हिन्दी (Hindi)"),
+                onTap: () { lp.changeLanguage('hi'); Navigator.pop(context); },
+              ),
+            ],
+          ),
+        );
+      },
     );
   }
 
@@ -106,14 +139,10 @@ class RoleSelectionScreen extends StatelessWidget {
               const SizedBox(width: 20),
               Text(
                 title,
-                style: TextStyle(
-                  fontSize: 20,
-                  fontWeight: FontWeight.bold,
-                  color: color,
-                ),
+                style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: color),
               ),
               const Spacer(),
-              const Icon(Icons.arrow_forward_ios, color: Colors.grey),
+              const Icon(Icons.arrow_forward_ios, color: Colors.grey, size: 16),
             ],
           ),
         ),

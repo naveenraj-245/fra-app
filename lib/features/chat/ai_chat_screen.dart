@@ -1,167 +1,205 @@
 import 'package:flutter/material.dart';
 import 'package:google_generative_ai/google_generative_ai.dart';
 
-class AIChatScreen extends StatefulWidget {
-  const AIChatScreen({super.key});
+class AiChatScreen extends StatefulWidget {
+  const AiChatScreen({super.key});
 
   @override
-  State<AIChatScreen> createState() => _AIChatScreenState();
+  State<AiChatScreen> createState() => _AiChatScreenState();
 }
 
-class _AIChatScreenState extends State<AIChatScreen> {
-  final TextEditingController _controller = TextEditingController();
-  final List<Map<String, String>> _messages = [];
-  bool _isLoading = false;
-
-  // YOUR ACTUAL API KEY (From your screenshot)
-// Make sure there are no spaces at the start or end!
-static const String _apiKey = "AIzaSyDsgpaDZCUEdeGQ8X2snq576-7oKevgPAk";
+class _AiChatScreenState extends State<AiChatScreen> {
+  // 🔑 REPLACE WITH YOUR REAL KEY
+  static const String _apiKey = 'AIzaSyC-m0-hPRJHBbGOuupJkP4vqcgofA1twpE'; 
 
   late final GenerativeModel _model;
-  late final ChatSession _chat;
+  late final ChatSession _chatSession;
+
+  final List<ChatMessageData> _messages = [];
+  final TextEditingController _textController = TextEditingController();
+  bool _isTyping = false;
 
   @override
   void initState() {
     super.initState();
-    // Use the latest flash model. 
-    // IMPORTANT: Make sure you upgraded the package in Step 1!
-    _model = GenerativeModel(
-      model: 'gemini-1.5-flash', 
-      apiKey: _apiKey,
-    );
-    _chat = _model.startChat();
+    _initGemini();
   }
 
-  Future<void> _sendMessage() async {
-    final text = _controller.text.trim();
-    if (text.isEmpty) return;
+  @override
+  void dispose() {
+    _textController.dispose();
+    super.dispose();
+  }
 
-    // 1. Add User Message to Screen
-    setState(() {
-      _messages.add({"role": "user", "text": text});
-      _isLoading = true;
-    });
-    _controller.clear();
-
-    try {
-      // 2. Send to Google Gemini
-      final response = await _chat.sendMessage(Content.text(text));
-
-      // 3. Add AI Response to Screen
-      setState(() {
-        _messages.add({
-          "role": "bot",
-          "text": response.text ?? "I am not sure how to answer that."
-        });
-      });
-    } catch (e) {
-      // 4. Handle Errors (shows the REAL error now)
-      setState(() {
-        _messages.add({
-          "role": "bot",
-          "text": "Error: $e" 
-        });
-      });
-      debugPrint("GEMINI ERROR: $e"); // Prints to your VS Code terminal
-    } finally {
-      setState(() => _isLoading = false);
-    }
+  void _initGemini() {
+    _model = GenerativeModel(
+      model: 'gemini-pro',
+      apiKey: _apiKey,
+      // 🧠 SYSTEM PROMPT: TEACHING GEMINI HOW TO BEHAVE
+      systemInstruction: Content.system(
+        "You are 'VanAdhikar AI', a helpful assistant for tribal people in India. "
+        "Your goal is to explain the Forest Rights Act (FRA) 2006 in very simple, short sentences. "
+        "Answer questions about land claims, documents needed (Voter ID, Ration Card), and rights. "
+        "If asked about status, say 'Please check the Track Status tab'. "
+        "Always be polite and encouraging."
+      ),
+    );
+    _chatSession = _model.startChat();
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text("Forest Friend AI"),
-        backgroundColor: const Color(0xFF1B5E20),
+        title: const Text("AI Sahayak (Helper)"),
+        backgroundColor: const Color(0xFF1B5E20), // Forest Green
         foregroundColor: Colors.white,
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.delete_sweep),
+            onPressed: () => setState(() => _messages.clear()),
+          ),
+        ],
       ),
       body: Column(
         children: [
-          // CHAT MESSAGES AREA
           Expanded(
-            child: _messages.isEmpty
-                ? const Center(
-                    child: Text(
-                      "Ask me about Forest Rights!\nTry: 'What is FRA?'",
-                      textAlign: TextAlign.center,
-                      style: TextStyle(color: Colors.grey),
-                    ),
-                  )
-                : ListView.builder(
-                    padding: const EdgeInsets.all(16),
-                    itemCount: _messages.length,
-                    itemBuilder: (context, index) {
-                      final msg = _messages[index];
-                      final isUser = msg["role"] == "user";
-                      return Align(
-                        alignment: isUser ? Alignment.centerRight : Alignment.centerLeft,
-                        child: Container(
-                          margin: const EdgeInsets.symmetric(vertical: 5),
-                          padding: const EdgeInsets.all(12),
-                          constraints: BoxConstraints(maxWidth: MediaQuery.of(context).size.width * 0.75),
-                          decoration: BoxDecoration(
-                            color: isUser ? const Color(0xFF1B5E20) : Colors.grey[200],
-                            borderRadius: BorderRadius.only(
-                              topLeft: const Radius.circular(15),
-                              topRight: const Radius.circular(15),
-                              bottomLeft: isUser ? const Radius.circular(15) : Radius.circular(0),
-                              bottomRight: isUser ? Radius.circular(0) : const Radius.circular(15),
-                            ),
-                          ),
-                          child: Text(
-                            msg["text"]!,
-                            style: TextStyle(color: isUser ? Colors.white : Colors.black87),
-                          ),
-                        ),
-                      );
-                    },
-                  ),
+            child: ListView.builder(
+              reverse: true,
+              padding: const EdgeInsets.all(16),
+              itemCount: _messages.length,
+              itemBuilder: (context, index) {
+                final message = _messages[index];
+                return _buildMessageBubble(message);
+              },
+            ),
           ),
-
-          // LOADING INDICATOR
-          if (_isLoading) 
+          if (_isTyping)
             const Padding(
               padding: EdgeInsets.all(8.0),
-              child: LinearProgressIndicator(color: Color(0xFF1B5E20)),
+              child: Row(
+                children: [
+                  SizedBox(width: 16),
+                  CircularProgressIndicator(strokeWidth: 2),
+                  SizedBox(width: 12),
+                  Text('VanAdhikar AI is typing...'),
+                ],
+              ),
             ),
+          _buildInputField(),
+        ],
+      ),
+    );
+  }
 
-          // INPUT FIELD AREA
-          Container(
-            padding: const EdgeInsets.all(10),
-            color: Colors.white,
-            child: Row(
-              children: [
-                Expanded(
-                  child: TextField(
-                    controller: _controller,
-                    textCapitalization: TextCapitalization.sentences,
-                    decoration: InputDecoration(
-                      hintText: "Type your question...",
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(30),
-                        borderSide: BorderSide.none,
-                      ),
-                      filled: true,
-                      fillColor: Colors.grey[100],
-                      contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
-                    ),
-                    onSubmitted: (_) => _sendMessage(),
-                  ),
+  Widget _buildMessageBubble(ChatMessageData message) {
+    final isUser = message.isUser;
+    return Align(
+      alignment: isUser ? Alignment.centerRight : Alignment.centerLeft,
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 12),
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+        constraints: BoxConstraints(maxWidth: MediaQuery.of(context).size.width * 0.75),
+        decoration: BoxDecoration(
+          color: isUser ? const Color(0xFF1B5E20) : const Color(0xFFE8F5E9),
+          borderRadius: BorderRadius.circular(16),
+        ),
+        child: Text(
+          message.text,
+          style: TextStyle(
+            color: isUser ? Colors.white : Colors.black87,
+            fontSize: 15,
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildInputField() {
+    return Container(
+      padding: const EdgeInsets.all(8),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.1),
+            blurRadius: 4,
+            offset: const Offset(0, -2),
+          ),
+        ],
+      ),
+      child: Row(
+        children: [
+          Expanded(
+            child: TextField(
+              controller: _textController,
+              decoration: const InputDecoration(
+                hintText: 'Ask about your rights...',
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.all(Radius.circular(24)),
                 ),
-                const SizedBox(width: 8),
-                CircleAvatar(
-                  backgroundColor: const Color(0xFF1B5E20),
-                  child: IconButton(
-                    icon: const Icon(Icons.send, color: Colors.white),
-                    onPressed: _sendMessage,
-                  ),
-                ),
-              ],
+                contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+              ),
+              maxLines: null,
+              textCapitalization: TextCapitalization.sentences,
+            ),
+          ),
+          const SizedBox(width: 8),
+          CircleAvatar(
+            backgroundColor: const Color(0xFF1B5E20),
+            child: IconButton(
+              icon: const Icon(Icons.send, color: Colors.white),
+              onPressed: _sendMessage,
             ),
           ),
         ],
       ),
     );
   }
+
+  Future<void> _sendMessage() async {
+    final text = _textController.text.trim();
+    if (text.isEmpty) return;
+
+    // 1. Add User Message to UI
+    setState(() {
+      _messages.insert(0, ChatMessageData(text: text, isUser: true));
+      _isTyping = true;
+    });
+    _textController.clear();
+
+    try {
+      // 2. Send to Gemini
+      final response = await _chatSession.sendMessage(
+        Content.text(text),
+      );
+
+      final responseText = response.text;
+      if (responseText == null) return;
+
+      // 3. Add AI Response to UI
+      if (mounted) {
+        setState(() {
+          _messages.insert(0, ChatMessageData(text: responseText, isUser: false));
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text("Error: $e"), backgroundColor: Colors.red),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _isTyping = false);
+      }
+    }
+  }
+}
+
+class ChatMessageData {
+  final String text;
+  final bool isUser;
+
+  ChatMessageData({required this.text, required this.isUser});
 }

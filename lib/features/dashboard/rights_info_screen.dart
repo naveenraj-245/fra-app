@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-
 class RightsInfoScreen extends StatelessWidget {
   const RightsInfoScreen({super.key});
 

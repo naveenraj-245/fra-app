@@ -1,114 +1,38 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_auth/firebase_auth.dart';
+import '../../services/database_service.dart';
 
 class ClaimApplicationScreen extends StatefulWidget {
-  const ClaimApplicationScreen({super.key});
+  final bool isAssisted;
+  
+  const ClaimApplicationScreen({super.key, this.isAssisted = false});
 
   @override
   State<ClaimApplicationScreen> createState() => _ClaimApplicationScreenState();
 }
 
 class _ClaimApplicationScreenState extends State<ClaimApplicationScreen> {
-  // --- STATE VARIABLES ---
   int _currentStep = 0;
-  final PageController _pageController = PageController();
-  bool _isSubmitting = false;
-
+  
   // Form Controllers
   final _nameController = TextEditingController();
-  final _fatherNameController = TextEditingController();
+  final _tribeController = TextEditingController();
   final _aadharController = TextEditingController();
   
-  // Map Data
+  // MAP DATA (The points user marks)
   final MapController _mapController = MapController();
-  List<LatLng> _boundaryPoints = [];
+  final LatLng _center = const LatLng(11.4064, 76.6932); // Nilgiris
+  final List<LatLng> _boundaryPoints = [];
 
-  // --- SUBMISSION LOGIC ---
-  Future<void> _submitClaim() async {
-    if (_nameController.text.isEmpty || _boundaryPoints.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Please fill details and mark land boundary.")),
-      );
-      return;
-    }
-
-    setState(() => _isSubmitting = true);
-
-    try {
-      final user = FirebaseAuth.instance.currentUser;
-      if (user == null) throw Exception("User not logged in");
-
-      // 1. Convert Map Points to Firebase GeoPoints
-      List<GeoPoint> boundaryGeoPoints = _boundaryPoints
-          .map((p) => GeoPoint(p.latitude, p.longitude))
-          .toList();
-
-      // 2. Prepare Data
-      final claimData = {
-        'userId': user.uid,
-        'status': 'Submitted',
-        'submittedAt': FieldValue.serverTimestamp(),
-        'beneficiary': {
-          'fullName': _nameController.text.trim(),
-          'fatherName': _fatherNameController.text.trim(),
-          'aadhar': _aadharController.text.trim(),
-        },
-        'landData': {
-          'boundary': boundaryGeoPoints,
-          'center': boundaryGeoPoints.isNotEmpty 
-              ? GeoPoint(boundaryGeoPoints[0].latitude, boundaryGeoPoints[0].longitude) 
-              : null,
-          'totalPoints': boundaryGeoPoints.length,
-        }
-      };
-
-      // 3. Save to Firestore
-      await FirebaseFirestore.instance.collection('claims').add(claimData);
-
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text("Claim Submitted Successfully!"), backgroundColor: Colors.green),
-        );
-        Navigator.pop(context);
-      }
-
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text("Error: $e"), backgroundColor: Colors.red),
-        );
-      }
-    } finally {
-      if (mounted) setState(() => _isSubmitting = false);
-    }
-  }
-
-  // --- NAVIGATION LOGIC ---
-  void _nextStep() {
-    if (_currentStep < 2) {
-      setState(() => _currentStep++);
-      _pageController.animateToPage(
-        _currentStep,
-        duration: const Duration(milliseconds: 300),
-        curve: Curves.easeInOut,
-      );
-    } else {
-      _submitClaim();
-    }
-  }
-
-  void _prevStep() {
-    if (_currentStep > 0) {
-      setState(() => _currentStep--);
-      _pageController.animateToPage(
-        _currentStep,
-        duration: const Duration(milliseconds: 300),
-        curve: Curves.easeInOut,
-      );
-    }
+  final DatabaseService _dbService = DatabaseService();
+  bool _isSubmitting = false;
+  @override
+  void dispose() {
+    _nameController.dispose();
+    _tribeController.dispose();
+    _aadharController.dispose();
+    super.dispose();
   }
 
   @override
@@ -116,299 +40,267 @@ class _ClaimApplicationScreenState extends State<ClaimApplicationScreen> {
     return Scaffold(
       appBar: AppBar(
         title: const Text("New Land Claim"),
-        backgroundColor: Colors.green[800],
+        backgroundColor: const Color(0xFF1B5E20),
         foregroundColor: Colors.white,
-        elevation: 0,
       ),
-      body: Column(
-        children: [
-          // 1. Progress Bar
-          _buildProgressBar(),
+      // We use a Stepper to guide the user
+      body: Stepper(
+        type: StepperType.horizontal,
+        currentStep: _currentStep,
+        onStepContinue: () async {
+          if (_currentStep < 2) {
+            setState(() => _currentStep += 1);
+          } else {
+            // --- REAL SUBMIT LOGIC ---
+            setState(() => _isSubmitting = true);
 
-          // 2. Main Content (PageView)
-          Expanded(
-            child: PageView(
-              controller: _pageController,
-              physics: const NeverScrollableScrollPhysics(), // Disable swipe
-              children: [
-                _buildStep1Beneficiary(),
-                _buildStep2Map(),
-                _buildStep3Review(),
-              ],
-            ),
-          ),
-        ],
-      ),
-      bottomNavigationBar: _buildBottomControls(),
-    );
-  }
+            try {
+              await _dbService.submitClaim(
+                name: _nameController.text.trim(),
+                type: "Individual Land", // You can make this a dropdown later
+                area: "2.5", // Get this from your controller
+                address: "Nilgiris Forest Zone", // Get this from controller
+                phone: "9876543210", // Get from controller
+                lat: 11.41, // Get from Location Controller
+                lng: 76.69,
+                isAssisted: widget.isAssisted,
+                beneficiaryId: widget.isAssisted ? _aadharController.text : null,
+              );
 
-  // ==========================================
-  // STEP 1: BENEFICIARY DETAILS
-  // ==========================================
-  Widget _buildStep1Beneficiary() {
-    return SingleChildScrollView(
-      padding: const EdgeInsets.all(20),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          _sectionHeader("Beneficiary Details", Icons.person),
-          const SizedBox(height: 15),
-          Card(
-            elevation: 2,
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-            child: Padding(
-              padding: const EdgeInsets.all(20),
-              child: Column(
-                children: [
-                  _buildFancyInput("Full Name", Icons.badge, _nameController),
-                  const SizedBox(height: 20),
-                  _buildFancyInput("Father/Spouse Name", Icons.family_restroom, _fatherNameController),
-                  const SizedBox(height: 20),
-                  _buildFancyInput("Aadhar Number", Icons.credit_card, _aadharController, isNumber: true),
-                ],
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  // ==========================================
-  // STEP 2: MAP & LAND IDENTIFICATION
-  // ==========================================
-  Widget _buildStep2Map() {
-    return Stack(
-      children: [
-        FlutterMap(
-          mapController: _mapController,
-          options: MapOptions(
-            // 1. Use a fixed start point (Odisha) to avoid World View (Image 1 issue)
-            initialCenter: const LatLng(20.2961, 85.8245), 
-            initialZoom: 15.0,
-            onTap: (tapPosition, point) {
-              setState(() {
-                _boundaryPoints.add(point);
-              });
-            },
-          ),
-          children: [
-            TileLayer(
-              urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
-              userAgentPackageName: 'com.example.fra_app',
-            ),
-            
-            // 2. Only draw the Polygon Layer if we have points
-            if (_boundaryPoints.isNotEmpty)
-              PolygonLayer(
-                polygons: [
-                  Polygon(
-                    points: _boundaryPoints,
-                    color: Colors.blue.withOpacity(0.3),
-                    borderColor: Colors.blue,
-                    borderStrokeWidth: 2,
-                    // Note: A valid polygon needs at least 3 points, 
-                    // but flutter_map usually handles <3 gracefully by just drawing lines.
+              if (context.mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text("Claim Submitted Successfully!"),
+                    backgroundColor: Colors.green,
                   ),
-                ],
-              ),
-
-            // 3. Draw Markers for every tap (visual feedback)
-            MarkerLayer(
-              markers: _boundaryPoints.map((p) => Marker(
-                point: p,
-                width: 12,
-                height: 12,
-                child: Container(
-                  decoration: BoxDecoration(
-                    color: Colors.blueAccent,
-                    shape: BoxShape.circle,
-                    border: Border.all(color: Colors.white, width: 2),
-                  ),
-                ),
-              )).toList(),
-            ),
-          ],
-        ),
-
-        // --- INSTRUCTIONS BANNER ---
-        Positioned(
-          top: 20,
-          left: 20,
-          right: 20,
-          child: Container(
-            padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
-            decoration: BoxDecoration(
-              color: Colors.white.withOpacity(0.9),
-              borderRadius: BorderRadius.circular(30),
-              boxShadow: const [BoxShadow(color: Colors.black12, blurRadius: 10)],
-            ),
+                );
+                Navigator.pop(context); // Close form
+              }
+            } catch (e) {
+              if (context.mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(content: Text("Error: $e"), backgroundColor: Colors.red),
+                );
+              }
+            } finally {
+              if (mounted) setState(() => _isSubmitting = false);
+            }
+          }
+        },
+        onStepCancel: () {
+          if (_currentStep > 0) {
+            setState(() => _currentStep -= 1);
+          } else {
+            Navigator.pop(context);
+          }
+        },
+        controlsBuilder: (context, details) {
+          return Padding(
+            padding: const EdgeInsets.only(top: 20.0),
             child: Row(
-              mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                const Icon(Icons.touch_app, color: Colors.green),
-                const SizedBox(width: 8),
-                Text(
-                  _boundaryPoints.isEmpty 
-                      ? "Tap map to mark start point" 
-                      : "Marking Point ${_boundaryPoints.length + 1}",
-                  style: const TextStyle(fontWeight: FontWeight.bold),
+                Expanded(
+                  child: ElevatedButton(
+                    onPressed: details.onStepContinue,
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFF1B5E20),
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(vertical: 15),
+                    ),
+                    child: Text(_currentStep == 2 ? "SUBMIT CLAIM" : "NEXT STEP"),
+                  ),
+                ),
+                const SizedBox(width: 15),
+                if (_currentStep > 0)
+                  Expanded(
+                    child: OutlinedButton(
+                      onPressed: details.onStepCancel,
+                      style: OutlinedButton.styleFrom(padding: const EdgeInsets.symmetric(vertical: 15)),
+                      child: const Text("BACK"),
+                    ),
+                  ),
+              ],
+            ),
+          );
+        },
+        steps: [
+          // ---------------- STEP 1: PERSONAL DETAILS ----------------
+          Step(
+            title: const Text("Details"),
+            isActive: _currentStep >= 0,
+            state: _currentStep > 0 ? StepState.complete : StepState.indexed,
+            content: Column(
+              children: [
+                // 👇 Show Aadhar Field if Officer is Assisting
+                if (widget.isAssisted) ...[
+                  const Text(
+                    "Officer Assisted Application",
+                    style: TextStyle(fontWeight: FontWeight.bold, color: Colors.blue, fontSize: 16),
+                  ),
+                  const SizedBox(height: 10),
+                  TextField(
+                    controller: _aadharController,
+                    keyboardType: TextInputType.number,
+                    maxLength: 12,
+                    decoration: const InputDecoration(
+                      labelText: "Applicant Aadhar Number *",
+                      border: OutlineInputBorder(),
+                      prefixIcon: Icon(Icons.credit_card),
+                      helperText: "Enter 12-digit Aadhar Number of the applicant",
+                    ),
+                  ),
+                  const SizedBox(height: 15),
+                ],
+                TextField(
+                  controller: _nameController,
+                  decoration: const InputDecoration(labelText: "Full Name", border: OutlineInputBorder()),
+                ),
+                const SizedBox(height: 15),
+                TextField(
+                  controller: _tribeController,
+                  decoration: const InputDecoration(labelText: "Tribe / Community", border: OutlineInputBorder()),
+                ),
+                const SizedBox(height: 15),
+                const TextField(
+                  decoration: InputDecoration(labelText: "Village Name", border: OutlineInputBorder()),
                 ),
               ],
             ),
           ),
-        ),
 
-        // --- FLOATING TOOLS ---
-        Positioned(
-          right: 20,
-          bottom: 20,
-          child: Column(
-            children: [
-              FloatingActionButton.small(
-                heroTag: "undo",
-                backgroundColor: Colors.white,
-                foregroundColor: Colors.black87,
-                child: const Icon(Icons.undo),
-                onPressed: () {
-                  if (_boundaryPoints.isNotEmpty) {
-                    setState(() => _boundaryPoints.removeLast());
-                  }
-                },
+          // ---------------- STEP 2: MARK LAND ON MAP ----------------
+          Step(
+            title: const Text("Map Land"),
+            isActive: _currentStep >= 1,
+            state: _currentStep > 1 ? StepState.complete : StepState.indexed,
+            content: SizedBox(
+              height: 400, // Fixed height for map inside stepper
+              child: Stack(
+                children: [
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(12),
+                    child: FlutterMap(
+                      mapController: _mapController,
+                      options: MapOptions(
+                        initialCenter: _center,
+                        initialZoom: 15.0,
+                        onTap: (tapPosition, point) {
+                          setState(() {
+                            _boundaryPoints.add(point);
+                          });
+                        },
+                      ),
+                      children: [
+                        TileLayer(
+                          urlTemplate: 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
+                          maxNativeZoom: 18,
+                          maxZoom: 22,
+                        ),
+                        if (_boundaryPoints.isNotEmpty)
+                          PolygonLayer(
+                            polygons: [
+                              Polygon(
+                                points: _boundaryPoints,
+                                color: Colors.green.withValues(alpha: 0.4),
+                                borderColor: Colors.greenAccent,
+                                borderStrokeWidth: 3,
+                              ),
+                            ],
+                          ),
+                        MarkerLayer(
+                          markers: _boundaryPoints.map((p) => Marker(
+                            point: p,
+                            width: 15, height: 15,
+                            child: const Icon(Icons.circle, color: Colors.white, size: 15),
+                          )).toList(),
+                        ),
+                      ],
+                    ),
+                  ),
+                  // MAP CONTROLS (Undo/Clear)
+                  Positioned(
+                    top: 10, right: 10,
+                    child: Column(
+                      children: [
+                        FloatingActionButton.small(
+                          heroTag: "undo",
+                          backgroundColor: Colors.white,
+                          onPressed: _boundaryPoints.isNotEmpty 
+                            ? () => setState(() => _boundaryPoints.removeLast()) 
+                            : null,
+                          child: const Icon(Icons.undo, color: Colors.black),
+                        ),
+                        const SizedBox(height: 10),
+                        FloatingActionButton.small(
+                          heroTag: "clear",
+                          backgroundColor: Colors.white,
+                          onPressed: () => setState(() => _boundaryPoints.clear()),
+                          child: const Icon(Icons.delete_forever, color: Colors.red),
+                        ),
+                      ],
+                    ),
+                  ),
+                  // INSTRUCTION BANNER
+                  if (_boundaryPoints.isEmpty)
+                    Align(
+                      alignment: Alignment.bottomCenter,
+                      child: Container(
+                        margin: const EdgeInsets.all(10),
+                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                        decoration: BoxDecoration(
+                          color: Colors.black87,
+                          borderRadius: BorderRadius.circular(20),
+                        ),
+                        child: const Text(
+                          "Tap map corners to mark boundary",
+                          style: TextStyle(color: Colors.white, fontSize: 12),
+                        ),
+                      ),
+                    ),
+                ],
               ),
-            ],
+            ),
           ),
-        ),
-      ],
+
+          // ---------------- STEP 3: REVIEW ----------------
+          Step(
+            title: const Text("Review"),
+            isActive: _currentStep >= 2,
+            content: Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: Colors.green.withValues(alpha: 0.1),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: Colors.green),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  _buildReviewRow("Applicant:", _nameController.text.isEmpty ? "Sky" : _nameController.text),
+                  _buildReviewRow("Tribe:", _tribeController.text.isEmpty ? "Irula" : _tribeController.text),
+                  const Divider(),
+                  _buildReviewRow("Land Points:", "${_boundaryPoints.length} corners marked"),
+                  _buildReviewRow("Est. Area:", "2.5 Acres (Auto-calc)"),
+                  const SizedBox(height: 10),
+                  const Text("Status: Ready to Submit", style: TextStyle(fontWeight: FontWeight.bold, color: Colors.green)),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
     );
   }
 
-  // ==========================================
-  // STEP 3: REVIEW
-  // ==========================================
-  Widget _buildStep3Review() {
+  Widget _buildReviewRow(String label, String value) {
     return Padding(
-      padding: const EdgeInsets.all(20),
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-           const Icon(Icons.check_circle_outline, size: 80, color: Colors.green),
-           const SizedBox(height: 20),
-           const Text("Ready to Submit?", style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold)),
-           const SizedBox(height: 10),
-           Text("Beneficiary: ${_nameController.text}", style: const TextStyle(fontSize: 16)),
-           Text("Points Marked: ${_boundaryPoints.length}", style: const TextStyle(fontSize: 16)),
-           const SizedBox(height: 30),
-           const Text(
-             "By clicking submit, this data will be sent to the FRA database for verification.",
-             textAlign: TextAlign.center,
-             style: TextStyle(color: Colors.grey),
-           ),
-        ],
-      ),
-    );
-  }
-
-  // ==========================================
-  // HELPER WIDGETS
-  // ==========================================
-  Widget _buildProgressBar() {
-    return Container(
-      color: Colors.green[800],
-      padding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
+      padding: const EdgeInsets.symmetric(vertical: 4),
       child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          _stepIcon(0, "Details"),
-          _line(),
-          _stepIcon(1, "Map Land"),
-          _line(),
-          _stepIcon(2, "Review"),
-        ],
-      ),
-    );
-  }
-
-  Widget _stepIcon(int step, String label) {
-    bool isActive = _currentStep >= step;
-    return Column(
-      children: [
-        CircleAvatar(
-          radius: 14,
-          backgroundColor: isActive ? Colors.white : Colors.white38,
-          child: isActive 
-            ? Icon(Icons.check, size: 16, color: Colors.green[800]) 
-            : Text("${step + 1}", style: TextStyle(color: Colors.green[800], fontSize: 12)),
-        ),
-        const SizedBox(height: 4),
-        Text(label, style: TextStyle(color: Colors.white, fontSize: 10, fontWeight: isActive ? FontWeight.bold : FontWeight.normal))
-      ],
-    );
-  }
-
-  Widget _line() {
-    return Expanded(child: Container(height: 2, color: Colors.white38, margin: const EdgeInsets.symmetric(horizontal: 5, vertical: 10)));
-  }
-
-  Widget _sectionHeader(String title, IconData icon) {
-    return Row(
-      children: [
-        Icon(icon, color: Colors.green[800], size: 28),
-        const SizedBox(width: 10),
-        Text(title, style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.green[900])),
-      ],
-    );
-  }
-
-  Widget _buildFancyInput(String label, IconData icon, TextEditingController controller, {bool isNumber = false}) {
-    return TextFormField(
-      controller: controller,
-      keyboardType: isNumber ? TextInputType.number : TextInputType.text,
-      decoration: InputDecoration(
-        labelText: label,
-        prefixIcon: Icon(icon, color: Colors.green[700]),
-        filled: true,
-        fillColor: Colors.grey[50],
-        border: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: BorderSide.none),
-      ),
-    );
-  }
-
-  Widget _buildBottomControls() {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: const BoxDecoration(
-        color: Colors.white, 
-        boxShadow: [BoxShadow(color: Colors.black12, blurRadius: 10, offset: Offset(0, -5))]
-      ),
-      child: Row(
-        children: [
-          if (_currentStep > 0)
-            Expanded(
-              child: OutlinedButton(
-                onPressed: _prevStep,
-                style: OutlinedButton.styleFrom(
-                  padding: const EdgeInsets.symmetric(vertical: 16), 
-                  side: const BorderSide(color: Colors.grey)
-                ),
-                child: const Text("Back", style: TextStyle(color: Colors.black)),
-              ),
-            ),
-          if (_currentStep > 0) const SizedBox(width: 16),
-          Expanded(
-            flex: 2,
-            child: ElevatedButton(
-              onPressed: _isSubmitting ? null : _nextStep,
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.green[800],
-                padding: const EdgeInsets.symmetric(vertical: 16),
-                elevation: 0,
-              ),
-              child: _isSubmitting 
-                ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
-                : Text(_currentStep == 2 ? "SUBMIT CLAIM" : "NEXT STEP"),
-            ),
-          ),
+          Text(label, style: const TextStyle(color: Colors.grey)),
+          Text(value, style: const TextStyle(fontWeight: FontWeight.bold)),
         ],
       ),
     );

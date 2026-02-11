@@ -60,7 +60,7 @@ class GrievanceService {
       TaskSnapshot snapshot = await uploadTask;
       return await snapshot.ref.getDownloadURL();
     } catch (e) {
-      print("Image upload failed: $e");
+      // Image upload failed: $e
       return null;
     }
   }
@@ -116,6 +116,7 @@ class _GrievanceScreenState extends State<GrievanceScreen> {
 
     serviceEnabled = await Geolocator.isLocationServiceEnabled();
     if (!serviceEnabled) {
+      if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Location services are disabled.')));
       return;
     }
@@ -204,7 +205,7 @@ class _GrievanceScreenState extends State<GrievanceScreen> {
               const Text("Select Issue Type", style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
               const SizedBox(height: 10),
               DropdownButtonFormField<String>(
-                value: _selectedType,
+                initialValue: _selectedType,
                 items: _grievanceTypes.map((type) => DropdownMenuItem(value: type, child: Text(type))).toList(),
                 onChanged: (val) => setState(() => _selectedType = val!),
                 decoration: const InputDecoration(border: OutlineInputBorder()),
