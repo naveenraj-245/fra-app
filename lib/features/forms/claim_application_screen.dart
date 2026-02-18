@@ -101,13 +101,22 @@ class _ClaimApplicationScreenState extends State<ClaimApplicationScreen> {
               children: [
                 Expanded(
                   child: ElevatedButton(
-                    onPressed: details.onStepContinue,
+                    onPressed: _isSubmitting ? null : details.onStepContinue,
                     style: ElevatedButton.styleFrom(
                       backgroundColor: const Color(0xFF1B5E20),
                       foregroundColor: Colors.white,
                       padding: const EdgeInsets.symmetric(vertical: 15),
                     ),
-                    child: Text(_currentStep == 2 ? "SUBMIT CLAIM" : "NEXT STEP"),
+                    child: _isSubmitting
+                        ? const SizedBox(
+                            height: 20,
+                            width: 20,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                            ),
+                          )
+                        : Text(_currentStep == 2 ? "SUBMIT CLAIM" : "NEXT STEP"),
                   ),
                 ),
                 const SizedBox(width: 15),

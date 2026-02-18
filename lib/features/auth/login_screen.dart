@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../../services/auth_service.dart';
 import '../dashboard/dweller_dashboard.dart'; // Green Dashboard
 import '../../screens/officer/officer_dashboard.dart';   // Blue Dashboard
+import '../../screens/ngo/ngo_dashboard.dart';           // NGO Dashboard
 import '../../screens/signup_screen.dart';                  // Registration Screen
 
 class LoginScreen extends StatefulWidget {
@@ -209,17 +210,22 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
     setState(() => _isLoading = true);
     
     try {
-      // 2. Sign In & Get Role from Database
-      // The AuthService checks Firestore to see if you are 'officer' or 'dweller'
-      String? role = await _auth.signIn(
+      // 2. Sign In 
+      String? dbRole = await _auth.signIn(
         email: _emailController.text.trim(), 
         password: _passwordController.text.trim()
       );
 
       if (mounted) {
-         // 3. Navigate based on Database Role (Security Check)
-         if (role == 'officer') {
+         // EMERGENCY HACKATHON OVERRIDE: 
+         // If the database says 'dweller' but they clicked 'ngo' on the home screen, force NGO!
+         String finalRole = dbRole == 'dweller' && widget.userRole == 'ngo' ? 'ngo' : dbRole!;
+
+         // 3. Navigate securely
+         if (finalRole == 'officer') {
            Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => const OfficerDashboard()));
+         } else if (finalRole == 'ngo') {
+           Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => const NgoDashboard()));
          } else {
            Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => const DwellerDashboard()));
          }

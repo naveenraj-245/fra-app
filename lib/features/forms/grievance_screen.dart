@@ -16,8 +16,8 @@ class GrievanceModel {
   final String description;
   final String status;
   final DateTime submittedAt;
-  final String? imageUrl;       // New: URL of the uploaded image
-  final Map<String, double>? location; // New: Lat/Lng
+  final String? imageUrl;       // URL of the uploaded image
+  final Map<String, double>? location; // Lat/Lng
 
   GrievanceModel({
     this.id,
@@ -60,7 +60,6 @@ class GrievanceService {
       TaskSnapshot snapshot = await uploadTask;
       return await snapshot.ref.getDownloadURL();
     } catch (e) {
-      // Image upload failed: $e
       return null;
     }
   }
@@ -103,7 +102,10 @@ class _GrievanceScreenState extends State<GrievanceScreen> {
 
   // --- Image Picker Logic ---
   Future<void> _pickImage() async {
-    final XFile? pickedFile = await _picker.pickImage(source: ImageSource.camera);
+    final XFile? pickedFile = await _picker.pickImage(
+      source: ImageSource.camera, 
+      imageQuality: 80, // Compress slightly for faster uploads
+    );
     if (pickedFile != null) {
       setState(() => _imageFile = File(pickedFile.path));
     }
@@ -111,17 +113,14 @@ class _GrievanceScreenState extends State<GrievanceScreen> {
 
   // --- Location Logic ---
   Future<void> _getCurrentLocation() async {
-    bool serviceEnabled;
-    LocationPermission permission;
-
-    serviceEnabled = await Geolocator.isLocationServiceEnabled();
+    bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
     if (!serviceEnabled) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Location services are disabled.')));
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Please enable GPS.')));
       return;
     }
 
-    permission = await Geolocator.checkPermission();
+    LocationPermission permission = await Geolocator.checkPermission();
     if (permission == LocationPermission.denied) {
       permission = await Geolocator.requestPermission();
       if (permission == LocationPermission.denied) return;
@@ -130,11 +129,15 @@ class _GrievanceScreenState extends State<GrievanceScreen> {
     if (permission == LocationPermission.deniedForever) return;
 
     setState(() => _isLoading = true);
-    Position position = await Geolocator.getCurrentPosition();
-    setState(() {
-      _currentPosition = position;
-      _isLoading = false;
-    });
+    try {
+      Position position = await Geolocator.getCurrentPosition();
+      setState(() => _currentPosition = position);
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Failed to get location.')));
+    } finally {
+      setState(() => _isLoading = false);
+    }
   }
 
   // --- Submission Logic ---
@@ -189,10 +192,12 @@ class _GrievanceScreenState extends State<GrievanceScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: const Color(0xFFF5F7FA), // Modern light background
       appBar: AppBar(
         title: const Text("File a Grievance"),
-        backgroundColor: Colors.redAccent,
+        backgroundColor: const Color(0xFFD32F2F), // Red for alerts
         foregroundColor: Colors.white,
+        elevation: 0,
       ),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(16.0),
@@ -201,103 +206,148 @@ class _GrievanceScreenState extends State<GrievanceScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // --- Issue Type ---
-              const Text("Select Issue Type", style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
-              const SizedBox(height: 10),
-              DropdownButtonFormField<String>(
-                initialValue: _selectedType,
-                items: _grievanceTypes.map((type) => DropdownMenuItem(value: type, child: Text(type))).toList(),
-                onChanged: (val) => setState(() => _selectedType = val!),
-                decoration: const InputDecoration(border: OutlineInputBorder()),
-              ),
               
-              const SizedBox(height: 24),
-
-              // --- Description ---
-              const Text("Describe the Issue", style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
-              const SizedBox(height: 10),
-              TextFormField(
-                controller: _descController,
-                maxLines: 5,
-                decoration: const InputDecoration(
-                  hintText: "Enter details here...",
-                  border: OutlineInputBorder(),
+              // --- Notice Banner ---
+              Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: Colors.red[50], 
+                  borderRadius: BorderRadius.circular(12), 
+                  border: Border.all(color: Colors.red.withOpacity(0.3))
                 ),
-                validator: (val) => val!.isEmpty ? "Please enter a description" : null,
+                child: const Row(
+                  children: [
+                    Icon(Icons.shield, color: Colors.red),
+                    SizedBox(width: 12),
+                    Expanded(
+                      child: Text(
+                        "Your report is secure and will be sent directly to the District Authority.", 
+                        style: TextStyle(color: Colors.red)
+                      )
+                    ),
+                  ],
+                ),
               ),
-
               const SizedBox(height: 24),
 
-              // --- Evidence (Image) ---
-              const Text("Attach Evidence", style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
-              const SizedBox(height: 10),
-              InkWell(
-                onTap: _pickImage,
-                child: Container(
-                  height: 150,
-                  width: double.infinity,
-                  decoration: BoxDecoration(
-                    color: Colors.grey[100],
-                    border: Border.all(color: Colors.grey.shade400),
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: _imageFile == null
-                      ? const Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Icon(Icons.camera_alt, size: 40, color: Colors.grey),
-                            SizedBox(height: 8),
-                            Text("Tap to take a photo", style: TextStyle(color: Colors.grey)),
-                          ],
-                        )
-                      : ClipRRect(
-                          borderRadius: BorderRadius.circular(8),
-                          child: Image.file(_imageFile!, fit: BoxFit.cover),
+              // --- Form Container ---
+              Container(
+                padding: const EdgeInsets.all(20),
+                decoration: BoxDecoration(
+                  color: Colors.white, 
+                  borderRadius: BorderRadius.circular(16), 
+                  boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 10)]
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text("Issue Type", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: Colors.black54)),
+                    const SizedBox(height: 8),
+                    DropdownButtonFormField<String>(
+                      initialValue: _selectedType,
+                      decoration: InputDecoration(
+                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)), 
+                        contentPadding: const EdgeInsets.symmetric(horizontal: 16)
+                      ),
+                      items: _grievanceTypes.map((type) => DropdownMenuItem(value: type, child: Text(type))).toList(),
+                      onChanged: (val) => setState(() => _selectedType = val!),
+                    ),
+                    const SizedBox(height: 20),
+
+                    const Text("Description", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: Colors.black54)),
+                    const SizedBox(height: 8),
+                    TextFormField(
+                      controller: _descController,
+                      maxLines: 4,
+                      decoration: InputDecoration(
+                        hintText: "Explain what happened in detail...", 
+                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12))
+                      ),
+                      validator: (val) => val!.isEmpty ? "Please enter details" : null,
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 20),
+
+              // --- Evidence Container ---
+              Container(
+                padding: const EdgeInsets.all(20),
+                decoration: BoxDecoration(
+                  color: Colors.white, 
+                  borderRadius: BorderRadius.circular(16), 
+                  boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 10)]
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text("Attach Evidence", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: Colors.black54)),
+                    const SizedBox(height: 12),
+                    InkWell(
+                      onTap: _pickImage,
+                      child: Container(
+                        height: 120,
+                        width: double.infinity,
+                        decoration: BoxDecoration(
+                          color: Colors.grey[50], 
+                          border: Border.all(color: Colors.grey.shade300, style: BorderStyle.solid), 
+                          borderRadius: BorderRadius.circular(12)
                         ),
+                        child: _imageFile == null
+                            ? const Column(
+                                mainAxisAlignment: MainAxisAlignment.center, 
+                                children: [
+                                  Icon(Icons.add_a_photo, size: 30, color: Colors.grey), 
+                                  SizedBox(height: 8), 
+                                  Text("Tap to take a photo", style: TextStyle(color: Colors.grey))
+                                ]
+                              )
+                            : ClipRRect(
+                                borderRadius: BorderRadius.circular(12), 
+                                child: Image.file(_imageFile!, fit: BoxFit.cover)
+                              ),
+                      ),
+                    ),
+                    const Divider(height: 30),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        const Text("Current Location", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: Colors.black54)),
+                        TextButton.icon(
+                          onPressed: _getCurrentLocation,
+                          icon: const Icon(Icons.my_location, size: 18),
+                          label: Text(_currentPosition == null ? "Mark GPS" : "Updated"),
+                          style: TextButton.styleFrom(foregroundColor: const Color(0xFFD32F2F)),
+                        ),
+                      ],
+                    ),
+                    if (_currentPosition != null)
+                      Text(
+                        "Lat: ${_currentPosition!.latitude.toStringAsFixed(4)}, Lng: ${_currentPosition!.longitude.toStringAsFixed(4)}", 
+                        style: TextStyle(color: Colors.green[700], fontSize: 12)
+                      ),
+                  ],
                 ),
               ),
-
-              const SizedBox(height: 24),
-
-              // --- Location ---
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  const Text("Location", style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
-                  TextButton.icon(
-                    onPressed: _getCurrentLocation,
-                    icon: const Icon(Icons.my_location),
-                    label: Text(_currentPosition == null ? "Get GPS" : "Updated"),
-                    style: TextButton.styleFrom(foregroundColor: Colors.blue),
-                  ),
-                ],
-              ),
-              if (_currentPosition != null)
-                Padding(
-                  padding: const EdgeInsets.only(top: 5),
-                  child: Text(
-                    "Lat: ${_currentPosition!.latitude.toStringAsFixed(4)}, Lng: ${_currentPosition!.longitude.toStringAsFixed(4)}",
-                    style: TextStyle(color: Colors.green[700], fontWeight: FontWeight.bold),
-                  ),
-                ),
-
-              const SizedBox(height: 32),
+              const SizedBox(height: 30),
 
               // --- Submit Button ---
               SizedBox(
                 width: double.infinity,
-                height: 50,
+                height: 55,
                 child: ElevatedButton(
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.redAccent,
-                    foregroundColor: Colors.white,
+                    backgroundColor: const Color(0xFFD32F2F), 
+                    foregroundColor: Colors.white, 
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))
                   ),
                   onPressed: _isLoading ? null : _submitGrievance,
-                  child: _isLoading
-                      ? const SizedBox(width: 24, height: 24, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
-                      : const Text("Submit Report", style: TextStyle(fontSize: 16)),
+                  child: _isLoading 
+                      ? const CircularProgressIndicator(color: Colors.white) 
+                      : const Text("SUBMIT REPORT", style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, letterSpacing: 1.2)),
                 ),
               ),
+              const SizedBox(height: 40),
             ],
           ),
         ),

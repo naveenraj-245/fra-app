@@ -53,8 +53,10 @@ class DwellerDashboard extends StatelessWidget {
         ),
         actions: [
           IconButton(
-            icon: const Icon(Icons.notifications, color: Colors.white),
-            onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const NotificationScreen())),
+            icon: const Icon(Icons.notifications),
+            onPressed: () {
+              Navigator.push(context, MaterialPageRoute(builder: (_) => const NotificationScreen()));
+            },
           ),
           // 👇 PROFILE ICON BUTTON (Opens Profile Screen)
           Padding(
@@ -108,6 +110,22 @@ class DwellerDashboard extends StatelessWidget {
             const SizedBox(height: 24),
 
             // --- QUICK ACTIONS GRID ---
+            // Grievance Button
+            ElevatedButton.icon(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.red[50],
+                foregroundColor: Colors.red[800],
+                padding: const EdgeInsets.all(16),
+              ),
+              onPressed: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (context) => const GrievanceScreen()),
+                );
+              },
+              icon: const Icon(Icons.report_problem),
+              label: const Text("File a Grievance"),
+            ),
             Text(lang.translate('quick_actions'), style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
             const SizedBox(height: 10),
             GridView.count(

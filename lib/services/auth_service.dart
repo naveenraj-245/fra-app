@@ -19,8 +19,9 @@ class AuthService {
   Future<UserCredential> signUp({
     required String email, 
     required String password,
-    required String name,      // New
-    required String phone,     // New
+    required String name,      
+    required String phone,     
+    String role = 'dweller', // Added default role so NGOs can be added later
   }) async {
     try {
       // 1. Create Auth Account
@@ -34,9 +35,9 @@ class AuthService {
         await _firestore.collection('users').doc(cred.user!.uid).set({
           'uid': cred.user!.uid,
           'email': email,
-          'name': name,         // Saved
-          'phone': phone,       // Saved
-          'role': 'dweller',    // Default role
+          'name': name,         
+          'phone': phone,       
+          'role': role,         
           'createdAt': FieldValue.serverTimestamp(),
         });
       }
@@ -51,7 +52,7 @@ class AuthService {
   // ----------------------------------------------------------------
   // 2. SIGN IN (Login) & GET ROLE
   // ----------------------------------------------------------------
-  // Returns the 'role' string (e.g., 'officer' or 'dweller') 
+  // Returns the 'role' string (e.g., 'officer', 'ngo', or 'dweller') 
   // so the UI knows which Dashboard to open.
   Future<String?> signIn({required String email, required String password}) async {
     try {
@@ -62,8 +63,6 @@ class AuthService {
       );
 
       // B. Fetch Role from Firestore
-      // This ensures that even if I select "Officer" on the login screen,
-      // the database decides who I really am.
       DocumentSnapshot userDoc = await _firestore
           .collection('users')
           .doc(cred.user!.uid)
@@ -84,14 +83,42 @@ class AuthService {
   }
 
   // ----------------------------------------------------------------
-  // 3. SIGN OUT
+  // 3. GET USER ROLE (Standalone fetch if needed elsewhere)
+  // ----------------------------------------------------------------
+  Future<String?> getUserRole(String uid) async {
+    try {
+      DocumentSnapshot doc = await _firestore.collection('users').doc(uid).get();
+      if (doc.exists && doc.data() != null) {
+        return (doc.data() as Map<String, dynamic>)['role'] as String?;
+      }
+      return null;
+    } catch (e) {
+      return null;
+    }
+  }
+
+  // ----------------------------------------------------------------
+  // 4. RESET PASSWORD (Needed for Officer Profile)
+  // ----------------------------------------------------------------
+  Future<void> resetPassword(String email) async {
+    try {
+      await _auth.sendPasswordResetEmail(email: email);
+    } on FirebaseAuthException catch (e) {
+      throw _handleAuthError(e);
+    } catch (e) {
+      throw 'Failed to send password reset email.';
+    }
+  }
+
+  // ----------------------------------------------------------------
+  // 5. SIGN OUT
   // ----------------------------------------------------------------
   Future<void> signOut() async {
     await _auth.signOut();
   }
 
   // ----------------------------------------------------------------
-  // 4. HELPER: Error Handling
+  // 6. HELPER: Error Handling
   // ----------------------------------------------------------------
   String _handleAuthError(FirebaseAuthException e) {
     switch (e.code) {
