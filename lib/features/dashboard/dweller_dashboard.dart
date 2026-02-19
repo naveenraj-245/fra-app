@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:cloud_firestore/cloud_firestore.dart'; // Needed for Name
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:provider/provider.dart';
 import '../../language_provider.dart';
 
@@ -13,7 +13,7 @@ import 'tracking_screen.dart';
 import 'rights_info_screen.dart';
 import 'help_centers_screen.dart';
 import 'notification_screen.dart';
-import 'profile_screen.dart'; // ✅ Import Profile Screen
+import 'profile_screen.dart';
 
 class DwellerDashboard extends StatelessWidget {
   const DwellerDashboard({super.key});
@@ -21,7 +21,7 @@ class DwellerDashboard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final lang = Provider.of<LanguageProvider>(context);
-    final user = FirebaseAuth.instance.currentUser; // Get current user
+    final user = FirebaseAuth.instance.currentUser;
 
     return Scaffold(
       backgroundColor: const Color(0xFFF5F5F5),
@@ -32,19 +32,26 @@ class DwellerDashboard extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(lang.translate('welcome_back'), style: const TextStyle(fontSize: 14, color: Colors.white70)),
-            // 👇 STREAM BUILDER TO SHOW REAL NAME
+            // 👇 STREAM BUILDER UPDATED: No more "Loading..." text
             if (user != null)
               StreamBuilder<DocumentSnapshot>(
                 stream: FirebaseFirestore.instance.collection('users').doc(user.uid).snapshots(),
                 builder: (context, snapshot) {
+                  // Default name (Email or "Forest Dweller") to show immediately
+                  String displayName = user.email?.split('@')[0] ?? "Forest Dweller";
+
                   if (snapshot.hasData && snapshot.data!.exists) {
                     var data = snapshot.data!.data() as Map<String, dynamic>;
-                    return Text(
-                      data['name'] ?? "Forest Dweller", 
-                      style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.white)
-                    );
+                    if (data['name'] != null && data['name'].toString().isNotEmpty) {
+                      displayName = data['name'];
+                    }
                   }
-                  return const Text("Loading...", style: TextStyle(fontSize: 18, color: Colors.white));
+                  
+                  // Shows Name (or fallback) instantly. No "Loading..." text.
+                  return Text(
+                    displayName, 
+                    style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.white)
+                  );
                 },
               )
             else 
@@ -58,7 +65,6 @@ class DwellerDashboard extends StatelessWidget {
               Navigator.push(context, MaterialPageRoute(builder: (_) => const NotificationScreen()));
             },
           ),
-          // 👇 PROFILE ICON BUTTON (Opens Profile Screen)
           Padding(
             padding: const EdgeInsets.only(right: 12.0),
             child: InkWell(
@@ -83,7 +89,7 @@ class DwellerDashboard extends StatelessWidget {
             Text(lang.translate('claim_status'), style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
             const SizedBox(height: 10),
             
-            // 1. LAND CLAIM CARD -> Goes to TrackingScreen
+            // 1. LAND CLAIM CARD
             _buildStatusCard(
               context,
               title: lang.translate('land_claim'),
@@ -96,7 +102,7 @@ class DwellerDashboard extends StatelessWidget {
 
             const SizedBox(height: 10),
 
-            // 2. FOREST PRODUCE CARD -> Goes to PermitScreen
+            // 2. FOREST PRODUCE CARD
             _buildStatusCard(
               context,
               title: lang.translate('forest_produce'),
@@ -110,22 +116,8 @@ class DwellerDashboard extends StatelessWidget {
             const SizedBox(height: 24),
 
             // --- QUICK ACTIONS GRID ---
-            // Grievance Button
-            ElevatedButton.icon(
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.red[50],
-                foregroundColor: Colors.red[800],
-                padding: const EdgeInsets.all(16),
-              ),
-              onPressed: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(builder: (context) => const GrievanceScreen()),
-                );
-              },
-              icon: const Icon(Icons.report_problem),
-              label: const Text("File a Grievance"),
-            ),
+            // ❌ GRIEVANCE BUTTON REMOVED FROM HERE ❌
+
             Text(lang.translate('quick_actions'), style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
             const SizedBox(height: 10),
             GridView.count(
@@ -195,7 +187,6 @@ class DwellerDashboard extends StatelessWidget {
           } else if (index == 2) {
             Navigator.push(context, MaterialPageRoute(builder: (_) => const NotificationScreen()));
           } else if (index == 3) {
-            // ✅ GO TO PROFILE SCREEN
             Navigator.push(context, MaterialPageRoute(builder: (_) => const ProfileScreen()));
           }
         },
@@ -257,7 +248,7 @@ class DwellerDashboard extends StatelessWidget {
           children: [
             CircleAvatar(
               radius: 24,
-              backgroundColor: color.withValues(alpha: 0.1),
+              backgroundColor: color.withOpacity(0.1),
               child: Icon(icon, color: color, size: 26),
             ),
             const SizedBox(height: 10),
@@ -282,7 +273,7 @@ class DwellerDashboard extends StatelessWidget {
           Container(
             padding: const EdgeInsets.all(10),
             decoration: BoxDecoration(
-              color: color.withValues(alpha: 0.1),
+              color: color.withOpacity(0.1),
               borderRadius: BorderRadius.circular(8),
             ),
             child: Icon(icon, color: color, size: 24),

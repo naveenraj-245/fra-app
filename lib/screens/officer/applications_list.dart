@@ -88,7 +88,7 @@ class _ApplicationsListScreenState extends State<ApplicationsListScreen> with Si
           itemBuilder: (context, index) {
             final doc = claims[index];
             final data = doc.data() as Map<String, dynamic>;
-            return _buildClaimCard(context, data);
+            return _buildClaimCard(context, data, doc.id);
           },
         );
       },
@@ -97,7 +97,7 @@ class _ApplicationsListScreenState extends State<ApplicationsListScreen> with Si
 
   // --- CARD DESIGN ---
   // --- CARD DESIGN ---
-  Widget _buildClaimCard(BuildContext context, Map<String, dynamic> claim) {
+  Widget _buildClaimCard(BuildContext context, Map<String, dynamic> claim, String claimId) {
     String status = claim['status'] ?? "Pending";
     String name = claim['applicantName']?.toString().trim() ?? ""; // Safely handle nulls
     
@@ -193,7 +193,7 @@ class _ApplicationsListScreenState extends State<ApplicationsListScreen> with Si
                   Navigator.push(
                     context,
                     MaterialPageRoute(
-                      builder: (context) => ApplicationDetailsScreen(claimData: claim),
+                      builder: (context) => ApplicationDetailsScreen(claimData: claim, claimId: claimId),
                     ),
                   );
                 },

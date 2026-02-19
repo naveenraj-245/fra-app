@@ -106,7 +106,7 @@ class RightsInfoScreen extends StatelessWidget {
                         padding: const EdgeInsets.symmetric(vertical: 12),
                         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                       ),
-                      child: const Text("Ask VanAdhikar AI"),
+                      child: const Text("ATLAS AI"),
                     ),
                   ),
                 ],

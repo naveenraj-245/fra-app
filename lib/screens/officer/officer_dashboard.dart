@@ -1,11 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import '../../features/auth/login_screen.dart';
+import '../../features/auth/role_selection_screen.dart';
 import '../../features/forms/claim_application_screen.dart';
-import '../../features/map/fra_map_screen.dart'; // For the Map Tab
+import '../../features/map/fra_map_screen.dart'; 
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'application_details.dart'; // To open the claim when clicked
-import 'applications_list.dart'; // To link the "Reviews" tab
+import 'application_details.dart'; 
+import 'applications_list.dart'; 
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
 
@@ -29,19 +29,18 @@ class _OfficerDashboardState extends State<OfficerDashboard> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFECEFF1), // Cool Grey Background
+      backgroundColor: const Color(0xFFECEFF1), 
       body: _pages[_currentIndex],
       
-      // FLOATING ACTION BUTTON (Assisted Mode)
       floatingActionButton: _currentIndex == 0 
         ? FloatingActionButton.extended(
             onPressed: () {
               Navigator.push(
                 context, 
-                MaterialPageRoute(builder: (_) => const ClaimApplicationScreen(isAssisted: true))
+                MaterialPageRoute(builder: (_) => const ClaimApplicationScreen(isAssisted: true)) // Adjust parameter if your constructor changes
               );
             },
-            backgroundColor: const Color(0xFF0D47A1), // Navy Blue
+            backgroundColor: const Color(0xFF0D47A1), 
             icon: const Icon(Icons.assignment_add, color: Colors.white),
             label: const Text("New Assisted Claim", style: TextStyle(color: Colors.white)),
           )
@@ -74,7 +73,6 @@ class OfficerHomeTab extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // 1. LISTEN TO CLAIM DATA STREAM
     return StreamBuilder<QuerySnapshot>(
       stream: FirebaseFirestore.instance.collection('claims').orderBy('submittedAt', descending: true).snapshots(),
       builder: (context, snapshot) {
@@ -82,12 +80,10 @@ class OfficerHomeTab extends StatelessWidget {
 
         var docs = snapshot.data!.docs;
         
-        // 2. CALCULATE STATS
         int pending = docs.where((d) => (d.data() as Map<String, dynamic>)['status'] == 'Pending').length;
         int approved = docs.where((d) => (d.data() as Map<String, dynamic>)['status'] == 'Approved').length;
         int rejected = docs.where((d) => (d.data() as Map<String, dynamic>)['status'] == 'Rejected').length;
 
-        // 3. EXTRACT LIVE MAP MARKERS
         List<Marker> mapMarkers = [];
         for (var doc in docs) {
           var data = doc.data() as Map<String, dynamic>;
@@ -104,7 +100,6 @@ class OfficerHomeTab extends StatelessWidget {
           }
         }
 
-        // 4. GET RECENT TASKS (Top 3)
         var recentClaims = docs.take(3).toList();
 
         return Scaffold(
@@ -112,7 +107,6 @@ class OfficerHomeTab extends StatelessWidget {
           body: SafeArea(
             child: CustomScrollView(
               slivers: [
-                // A. APP BAR
                 SliverAppBar(
                   backgroundColor: const Color(0xFF0D47A1),
                   expandedHeight: 100.0,
@@ -132,14 +126,12 @@ class OfficerHomeTab extends StatelessWidget {
                   ),
                 ),
 
-                // B. LIVE CONTENT
                 SliverToBoxAdapter(
                   child: Padding(
                     padding: const EdgeInsets.all(16.0),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        // 1. REAL STATS GRID
                         const Text("Live Status", style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
                         const SizedBox(height: 10),
                         Row(
@@ -154,7 +146,6 @@ class OfficerHomeTab extends StatelessWidget {
                         
                         const SizedBox(height: 24),
 
-                        // 2. LIVE FIELD MAP PREVIEW (Replaced Image with Real Map)
                         Row(
                           mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: [
@@ -177,9 +168,8 @@ class OfficerHomeTab extends StatelessWidget {
                             borderRadius: BorderRadius.circular(10),
                             child: FlutterMap(
                               options: MapOptions(
-                                initialCenter: const LatLng(11.4064, 76.6932), // Default center (Nilgiris)
+                                initialCenter: const LatLng(11.4064, 76.6932), 
                                 initialZoom: 11.0,
-                                // Disable gestures on the mini-map so it doesn't interrupt scrolling
                                 interactionOptions: const InteractionOptions(flags: InteractiveFlag.none),
                                 onTap: (_, __) {
                                   Navigator.push(context, MaterialPageRoute(builder: (_) => const FraMapScreen(isOfficerMode: true)));
@@ -187,8 +177,10 @@ class OfficerHomeTab extends StatelessWidget {
                               ),
                               children: [
                                 TileLayer(
-                                  urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+                                  urlTemplate: 'https://basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}.png',
                                   userAgentPackageName: 'com.satyasetu.app',
+                                  maxNativeZoom: 19,
+                                  maxZoom: 22,
                                 ),
                                 MarkerLayer(markers: mapMarkers),
                               ],
@@ -198,7 +190,6 @@ class OfficerHomeTab extends StatelessWidget {
                         
                         const SizedBox(height: 24),
                         
-                        // 3. LIVE TASKS LIST
                         const Text("Recent Claims", style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
                         const SizedBox(height: 10),
                         
@@ -208,19 +199,21 @@ class OfficerHomeTab extends StatelessWidget {
                              child: Text("No claims submitted yet."),
                            ),
 
+                        // Pass the document ID into the task tile!
                         ...recentClaims.map((doc) {
                           var data = doc.data() as Map<String, dynamic>;
                           return _buildTaskTile(
                             context,
                             data['applicantName'] ?? "Unknown", 
-                            "${data['type']} • ${data['area']} Acres", 
+                            "${data['communityType'] ?? 'ST'} • ${data['areaClaimed'] ?? '0'} Hectares", 
                             data['status'] ?? 'Pending',
                             getStatusColor(data['status'] ?? 'Pending'),
                             data, 
+                            doc.id, // ✅ ID passed here!
                           );
                         }),
 
-                        const SizedBox(height: 80), // Space for FAB
+                        const SizedBox(height: 80), 
                       ],
                     ),
                   ),
@@ -261,7 +254,8 @@ class OfficerHomeTab extends StatelessWidget {
     );
   }
 
-  Widget _buildTaskTile(BuildContext context, String title, String subtitle, String status, Color color, Map<String, dynamic> data) {
+  // Updated widget to accept claimId
+  Widget _buildTaskTile(BuildContext context, String title, String subtitle, String status, Color color, Map<String, dynamic> data, String claimId) {
     return Container(
       margin: const EdgeInsets.only(bottom: 10),
       decoration: BoxDecoration(
@@ -282,10 +276,10 @@ class OfficerHomeTab extends StatelessWidget {
           child: Text(status, style: TextStyle(color: color, fontSize: 10, fontWeight: FontWeight.bold)),
         ),
         onTap: () {
-          // Open Details Screen
+          // Pass the claimId smoothly to the details screen!
           Navigator.push(
             context, 
-            MaterialPageRoute(builder: (_) => ApplicationDetailsScreen(claimData: data))
+            MaterialPageRoute(builder: (_) => ApplicationDetailsScreen(claimData: data, claimId: claimId))
           );
         },
       ),
@@ -326,7 +320,6 @@ class OfficerProfileTab extends StatelessWidget {
       body: SingleChildScrollView(
         child: Column(
           children: [
-            // 1. HEADER (ID CARD STYLE)
             Container(
               width: double.infinity,
               padding: const EdgeInsets.only(bottom: 30, top: 20),
@@ -367,13 +360,11 @@ class OfficerProfileTab extends StatelessWidget {
             
             const SizedBox(height: 20),
 
-            // 2. SETTINGS LIST (NOW FUNCTIONAL)
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 16),
               child: Column(
                 children: [
                   _buildProfileMenu(Icons.assignment_turned_in, "My Approvals History", () {
-                    // Navigate to the list screen
                     Navigator.push(context, MaterialPageRoute(builder: (_) => const ApplicationsListScreen()));
                   }),
                   _buildProfileMenu(Icons.gavel, "Zone Jurisdictions", () => _showZoneDialog(context)),
@@ -383,7 +374,6 @@ class OfficerProfileTab extends StatelessWidget {
                   
                   const Divider(height: 40),
 
-                  // 3. LOGOUT BUTTON
                   SizedBox(
                     width: double.infinity,
                     height: 50,
@@ -409,7 +399,6 @@ class OfficerProfileTab extends StatelessWidget {
     );
   }
 
-  // --- MENU WIDGET HELPER ---
   Widget _buildProfileMenu(IconData icon, String title, VoidCallback onTap) {
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
@@ -431,11 +420,6 @@ class OfficerProfileTab extends StatelessWidget {
     );
   }
 
-  // ==========================================
-  // BUTTON ACTION METHODS
-  // ==========================================
-
-  // 1. Zone Jurisdictions Dialog
   void _showZoneDialog(BuildContext context) {
     showDialog(
       context: context,
@@ -457,7 +441,6 @@ class OfficerProfileTab extends StatelessWidget {
     );
   }
 
-  // 2. Language Preferences Sheet
   void _showLanguageSheet(BuildContext context) {
     showModalBottomSheet(
       context: context,
@@ -478,7 +461,6 @@ class OfficerProfileTab extends StatelessWidget {
     );
   }
 
-  // 3. Real Password Reset via Firebase
   void _resetPassword(BuildContext context, String? email) {
     if (email == null) return;
     FirebaseAuth.instance.sendPasswordResetEmail(email: email).then((_) {
@@ -492,7 +474,6 @@ class OfficerProfileTab extends StatelessWidget {
     });
   }
 
-  // 4. Help & Support Dialog
   void _showSupportDialog(BuildContext context) {
     showDialog(
       context: context,
@@ -506,7 +487,6 @@ class OfficerProfileTab extends StatelessWidget {
     );
   }
 
-  // 5. Secure Logout
   void _handleLogout(BuildContext context) {
     showDialog(
       context: context,
@@ -521,8 +501,7 @@ class OfficerProfileTab extends StatelessWidget {
               Navigator.pop(ctx);
               await FirebaseAuth.instance.signOut();
               if (context.mounted) {
-                // Adjust route to match your app's login screen
-                Navigator.pushAndRemoveUntil(context, MaterialPageRoute(builder: (_) => const LoginScreen(userRole: 'officer')), (route) => false);
+                Navigator.pushAndRemoveUntil(context, MaterialPageRoute(builder: (_) => const RoleSelectionScreen()), (route) => false);
               }
             },
             child: const Text("Log Out"),

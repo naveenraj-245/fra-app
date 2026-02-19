@@ -9,7 +9,7 @@ import '../../features/forms/claim_application_screen.dart';
 import '../../features/forms/grievance_screen.dart'; // NEW: Grievance support
 import '../../features/dashboard/tracking_screen.dart';
 import '../../features/dashboard/rights_info_screen.dart';
-import '../../features/auth/login_screen.dart';
+import '../../features/auth/role_selection_screen.dart';
 
 class NgoDashboard extends StatefulWidget {
   const NgoDashboard({super.key});
@@ -214,9 +214,8 @@ class NgoMapTab extends StatelessWidget {
         ),
         children: [
           TileLayer(
-            urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+            urlTemplate: 'https://basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}.png',
             userAgentPackageName: 'com.satyasetu.app', 
-            // ✅ ZOOM FIX ADDED HERE
             maxNativeZoom: 19, 
             maxZoom: 22,       
           ),
@@ -314,7 +313,7 @@ class NgoProfileTab extends StatelessWidget {
   void _handleLogout(BuildContext context) async {
     await FirebaseAuth.instance.signOut();
     if (context.mounted) {
-      Navigator.pushAndRemoveUntil(context, MaterialPageRoute(builder: (_) => const LoginScreen(userRole: 'ngo')), (route) => false);
+      Navigator.pushAndRemoveUntil(context, MaterialPageRoute(builder: (_) => const RoleSelectionScreen()), (route) => false);
     }
   }
 }

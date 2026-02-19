@@ -1,8 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import '../auth/login_screen.dart'; 
+import 'package:cloud_firestore/cloud_firestore.dart';
+import '../auth/role_selection_screen.dart';
 import 'tracking_screen.dart'; // Links to your tracking screen
-
+import '../../screens/home/my_documents_screen.dart';
 class ProfileScreen extends StatelessWidget {
   const ProfileScreen({super.key});
 
@@ -24,7 +25,7 @@ class ProfileScreen extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             // ==========================================
-            // 1. PROFILE HEADER
+            // 1. PROFILE HEADER (Now Reactive to Name Changes)
             // ==========================================
             Container(
               width: double.infinity,
@@ -33,39 +34,62 @@ class ProfileScreen extends StatelessWidget {
                 color: Color(0xFF1B5E20),
                 borderRadius: BorderRadius.vertical(bottom: Radius.circular(30)),
               ),
-              child: Column(
-                children: [
-                  Stack(
-                    alignment: Alignment.bottomRight,
+              child: StreamBuilder<DocumentSnapshot>(
+                stream: FirebaseFirestore.instance.collection('users').doc(user?.uid).snapshots(),
+                builder: (context, snapshot) {
+                  // Default name
+                  String displayName = "Forest Dweller";
+                  
+                  if (snapshot.hasData && snapshot.data!.exists) {
+                    var data = snapshot.data!.data() as Map<String, dynamic>;
+                    if (data['name'] != null && data['name'].toString().trim().isNotEmpty) {
+                      displayName = data['name'];
+                    }
+                  }
+
+                  return Column(
                     children: [
-                      const CircleAvatar(
-                        radius: 50,
-                        backgroundColor: Colors.white,
-                        child: Icon(Icons.person, size: 60, color: Color(0xFF1B5E20)),
+                      Stack(
+                        alignment: Alignment.bottomRight,
+                        children: [
+                          const CircleAvatar(
+                            radius: 50,
+                            backgroundColor: Colors.white,
+                            child: Icon(Icons.person, size: 60, color: Color(0xFF1B5E20)),
+                          ),
+                          // ✅ ACTIVATED EDIT ICON
+                          InkWell(
+                            onTap: () => _showEditProfileDialog(context, displayName, user),
+                            child: Container(
+                              padding: const EdgeInsets.all(8),
+                              decoration: BoxDecoration(
+                                color: Colors.greenAccent, 
+                                shape: BoxShape.circle,
+                                border: Border.all(color: const Color(0xFF1B5E20), width: 2),
+                              ),
+                              child: const Icon(Icons.edit, size: 16, color: Color(0xFF1B5E20)),
+                            ),
+                          ),
+                        ],
                       ),
+                      const SizedBox(height: 16),
+                      Text(displayName, style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: Colors.white)),
+                      const SizedBox(height: 8),
                       Container(
-                        padding: const EdgeInsets.all(6),
-                        decoration: const BoxDecoration(color: Colors.greenAccent, shape: BoxShape.circle),
-                        child: const Icon(Icons.edit, size: 16, color: Color(0xFF1B5E20)),
+                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+                        decoration: BoxDecoration(color: Colors.white.withOpacity(0.2), borderRadius: BorderRadius.circular(20)),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(user?.phoneNumber != null ? Icons.phone : Icons.email, size: 16, color: Colors.white),
+                            const SizedBox(width: 8),
+                            Text(contactInfo, style: const TextStyle(color: Colors.white, fontSize: 14)),
+                          ],
+                        ),
                       ),
                     ],
-                  ),
-                  const SizedBox(height: 16),
-                  const Text("Forest Dweller", style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: Colors.white)),
-                  const SizedBox(height: 8),
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
-                    decoration: BoxDecoration(color: Colors.white.withOpacity(0.2), borderRadius: BorderRadius.circular(20)),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(user?.phoneNumber != null ? Icons.phone : Icons.email, size: 16, color: Colors.white),
-                        const SizedBox(width: 8),
-                        Text(contactInfo, style: const TextStyle(color: Colors.white, fontSize: 14)),
-                      ],
-                    ),
-                  ),
-                ],
+                  );
+                }
               ),
             ),
             
@@ -92,6 +116,15 @@ class ProfileScreen extends StatelessWidget {
             ),
 
             const SizedBox(height: 16),
+
+            _buildMenuOption(
+              icon: Icons.folder_special, 
+              title: "My Digital Locker", 
+              subtitle: "Manage your permanent IDs and proofs",
+              onTap: () {
+                Navigator.push(context, MaterialPageRoute(builder: (_) => const MyDocumentsScreen()));
+              }
+            ),
 
             // ==========================================
             // 3. ACCOUNT SETTINGS SECTION
@@ -203,6 +236,65 @@ class ProfileScreen extends StatelessWidget {
   // BUTTON ACTION METHODS
   // ==========================================
 
+  // ✅ NEW: Edit Profile Dialog
+  void _showEditProfileDialog(BuildContext context, String currentName, User? user) {
+    if (user == null) return;
+    
+    // Controller to hold the name text
+    final TextEditingController nameController = TextEditingController(
+      text: currentName == "Forest Dweller" ? "" : currentName
+    );
+
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: const Text("Edit Profile Name"),
+        content: TextField(
+          controller: nameController,
+          textCapitalization: TextCapitalization.words,
+          decoration: const InputDecoration(
+            labelText: "Full Name",
+            hintText: "Enter your real name",
+            border: OutlineInputBorder(),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx), 
+            child: const Text("Cancel", style: TextStyle(color: Colors.grey))
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFF1B5E20), 
+              foregroundColor: Colors.white
+            ),
+            onPressed: () async {
+              String newName = nameController.text.trim();
+              if (newName.isNotEmpty) {
+                // Update Firestore securely using merge so it doesn't delete their role!
+                await FirebaseFirestore.instance.collection('users').doc(user.uid).set({
+                  'name': newName,
+                }, SetOptions(merge: true));
+                
+                // Update Firebase Auth display name
+                await user.updateDisplayName(newName);
+                
+                if (context.mounted) {
+                  Navigator.pop(ctx);
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text("Profile updated successfully!"), backgroundColor: Colors.green)
+                  );
+                }
+              }
+            },
+            child: const Text("Save Changes"),
+          ),
+        ],
+      ),
+    );
+  }
+
   void _showLanguageSheet(BuildContext context) {
     showModalBottomSheet(
       context: context,
@@ -284,7 +376,7 @@ class ProfileScreen extends StatelessWidget {
               Navigator.pop(ctx);
               await FirebaseAuth.instance.signOut();
               if (context.mounted) {
-                Navigator.pushAndRemoveUntil(context, MaterialPageRoute(builder: (_) => const LoginScreen(userRole: 'dweller')), (route) => false);
+                Navigator.pushAndRemoveUntil(context, MaterialPageRoute(builder: (_) => const RoleSelectionScreen()), (route) => false);
               }
             },
             child: const Text("Log Out"),

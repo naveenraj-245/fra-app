@@ -133,7 +133,7 @@ class _FraMapScreenState extends State<FraMapScreen> {
                     point: LatLng(pos.latitude, pos.longitude),
                     width: 50, height: 50,
                     child: GestureDetector(
-                      onTap: () => _showOfficerPreview(data),
+                      onTap: () => _showOfficerPreview(data, doc.id),
                       child: _buildMarkerIcon(data['status'] ?? "Pending"),
                     ),
                   ),
@@ -145,7 +145,12 @@ class _FraMapScreenState extends State<FraMapScreen> {
             mapController: _mapController,
             options: MapOptions(initialCenter: _center, initialZoom: 13.0),
             children: [
-              TileLayer(urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png'),
+              TileLayer(
+                urlTemplate: 'https://basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}.png',
+                userAgentPackageName: 'com.satyasetu.app',
+                maxNativeZoom: 19,
+                maxZoom: 22,
+              ),
               MarkerLayer(markers: markers),
             ],
           );
@@ -187,8 +192,10 @@ class _FraMapScreenState extends State<FraMapScreen> {
                 ),
                 children: [
                   TileLayer(
-                    urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
-                    maxNativeZoom: 18, maxZoom: 22,
+                    urlTemplate: 'https://basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}.png',
+                    userAgentPackageName: 'com.satyasetu.app',
+                    maxNativeZoom: 19,
+                    maxZoom: 22,
                   ),
                   if (_boundaryPoints.isNotEmpty)
                     PolygonLayer(
@@ -263,7 +270,7 @@ class _FraMapScreenState extends State<FraMapScreen> {
     return Icon(Icons.location_on, color: color, size: 40);
   }
 
-  void _showOfficerPreview(Map<String, dynamic> data) {
+  void _showOfficerPreview(Map<String, dynamic> data, String claimId) {
     showModalBottomSheet(
       context: context,
       builder: (ctx) => Container(
@@ -280,7 +287,7 @@ class _FraMapScreenState extends State<FraMapScreen> {
                 onPressed: () {
                   Navigator.pop(ctx);
                   // Ensure you update your ApplicationDetailsScreen to handle safe data types as per previous fix!
-                  Navigator.push(context, MaterialPageRoute(builder: (_) => ApplicationDetailsScreen(claimData: data)));
+                  Navigator.push(context, MaterialPageRoute(builder: (_) => ApplicationDetailsScreen(claimData: data, claimId: claimId)));
                 },
                 child: const Text("View Details"),
               ),

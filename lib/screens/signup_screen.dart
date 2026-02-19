@@ -22,6 +22,21 @@ class _SignUpScreenState extends State<SignUpScreen> {
 
   bool _isLoading = false;
 
+  // --- NEW: Strict Password Validator ---
+  String? _validatePassword(String? value) {
+    if (value == null || value.isEmpty) {
+      return 'Please enter a password.';
+    }
+    
+    // Rule: 8+ chars, at least 1 uppercase, at least 1 special char
+    RegExp passwordRegex = RegExp(r'^(?=.*[A-Z])(?=.*[!@#\$&*~]).{8,}$');
+    
+    if (!passwordRegex.hasMatch(value)) {
+      return 'Needs 8+ chars, 1 uppercase, and 1 special char.';
+    }
+    return null;
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -76,12 +91,16 @@ class _SignUpScreenState extends State<SignUpScreen> {
               ),
               const SizedBox(height: 16),
 
-              // 4. PASSWORD
+              // 4. PASSWORD (Updated with strict validation and hint)
               TextFormField(
                 controller: _passwordController,
                 obscureText: true,
-                decoration: _inputDecoration("Password", Icons.lock),
-                validator: (val) => val!.length < 6 ? "Min 6 characters" : null,
+                decoration: _inputDecoration(
+                  "Password", 
+                  Icons.lock,
+                  helperText: "Required: 8+ chars, 1 uppercase, 1 special char", // Added hint
+                ),
+                validator: _validatePassword, // Added strict validator
               ),
               const SizedBox(height: 16),
 
@@ -118,9 +137,11 @@ class _SignUpScreenState extends State<SignUpScreen> {
     );
   }
 
-  InputDecoration _inputDecoration(String label, IconData icon) {
+  // --- UPDATED: Added optional helperText parameter ---
+  InputDecoration _inputDecoration(String label, IconData icon, {String? helperText}) {
     return InputDecoration(
       labelText: label,
+      helperText: helperText, // This shows the text below the box
       prefixIcon: Icon(icon, color: const Color(0xFF1B5E20)),
       border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
       focusedBorder: OutlineInputBorder(

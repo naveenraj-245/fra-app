@@ -14,7 +14,7 @@ class RoleSelectionScreen extends StatelessWidget {
     return Scaffold(
       backgroundColor: const Color(0xFFF5F7FA), // Modern light background
       appBar: AppBar(
-        title: const Text("Satya-Setu", style: TextStyle(fontWeight: FontWeight.bold)),
+        title: const Text("ATLAS", style: TextStyle(fontWeight: FontWeight.bold)),
         centerTitle: true,
         backgroundColor: const Color(0xFF1B5E20), // Forest Green Theme
         foregroundColor: Colors.white,

@@ -16,23 +16,55 @@ class _ClaimApplicationScreenState extends State<ClaimApplicationScreen> {
   int _currentStep = 0;
   
   // Form Controllers
+  final _formKey = GlobalKey<FormState>(); // ✅ NEW: Form Key for validation
   final _nameController = TextEditingController();
   final _tribeController = TextEditingController();
+  final _villageController = TextEditingController(); // Added controller
+  final _areaController = TextEditingController(); // Added controller for 4-Hectare Rule
   final _aadharController = TextEditingController();
   
-  // MAP DATA (The points user marks)
+  // MAP DATA
   final MapController _mapController = MapController();
   final LatLng _center = const LatLng(11.4064, 76.6932); // Nilgiris
   final List<LatLng> _boundaryPoints = [];
 
   final DatabaseService _dbService = DatabaseService();
   bool _isSubmitting = false;
+
   @override
   void dispose() {
     _nameController.dispose();
     _tribeController.dispose();
+    _villageController.dispose();
+    _areaController.dispose();
     _aadharController.dispose();
     super.dispose();
+  }
+
+  // --- STRICT FRA VALIDATORS ---
+  String? _validateName(String? value) {
+    if (value == null || value.trim().isEmpty) return "Name is required";
+    if (!RegExp(r"^[a-zA-Z\s]+$").hasMatch(value)) {
+      return "Name must only contain letters (No numbers/symbols)";
+    }
+    return null;
+  }
+
+  String? _validateAadhar(String? value) {
+    if (value == null || value.trim().isEmpty) return "Aadhar is required";
+    if (!RegExp(r"^\d{12}$").hasMatch(value)) {
+      return "Aadhar must be exactly 12 digits";
+    }
+    return null;
+  }
+
+  String? _validateArea(String? value) {
+    if (value == null || value.trim().isEmpty) return "Estimated area required";
+    double? area = double.tryParse(value);
+    if (area == null) return "Must be a valid number";
+    if (area <= 0) return "Area must be greater than 0";
+    if (area > 4.0) return "FRA Rule Limit: Cannot claim more than 4 Hectares"; // ✅ FRA Legal Rule
+    return null;
   }
 
   @override
@@ -43,12 +75,22 @@ class _ClaimApplicationScreenState extends State<ClaimApplicationScreen> {
         backgroundColor: const Color(0xFF1B5E20),
         foregroundColor: Colors.white,
       ),
-      // We use a Stepper to guide the user
       body: Stepper(
         type: StepperType.horizontal,
         currentStep: _currentStep,
         onStepContinue: () async {
-          if (_currentStep < 2) {
+          // Block advancing if Form 1 is invalid
+          if (_currentStep == 0) {
+            if (!_formKey.currentState!.validate()) return; 
+            setState(() => _currentStep += 1);
+          } else if (_currentStep == 1) {
+            // Block advancing if map has no points
+            if (_boundaryPoints.length < 3) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(content: Text("Draw a boundary with at least 3 points"), backgroundColor: Colors.orange),
+              );
+              return;
+            }
             setState(() => _currentStep += 1);
           } else {
             // --- REAL SUBMIT LOGIC ---
@@ -57,12 +99,12 @@ class _ClaimApplicationScreenState extends State<ClaimApplicationScreen> {
             try {
               await _dbService.submitClaim(
                 name: _nameController.text.trim(),
-                type: "Individual Land", // You can make this a dropdown later
-                area: "2.5", // Get this from your controller
-                address: "Nilgiris Forest Zone", // Get this from controller
-                phone: "9876543210", // Get from controller
-                lat: 11.41, // Get from Location Controller
-                lng: 76.69,
+                type: "Individual Land", 
+                area: _areaController.text.trim(), 
+                address: _villageController.text.trim(),
+                phone: "9876543210", 
+                lat: _boundaryPoints.first.latitude, 
+                lng: _boundaryPoints.first.longitude,
                 isAssisted: widget.isAssisted,
                 beneficiaryId: widget.isAssisted ? _aadharController.text : null,
               );
@@ -74,7 +116,7 @@ class _ClaimApplicationScreenState extends State<ClaimApplicationScreen> {
                     backgroundColor: Colors.green,
                   ),
                 );
-                Navigator.pop(context); // Close form
+                Navigator.pop(context); 
               }
             } catch (e) {
               if (context.mounted) {
@@ -138,42 +180,60 @@ class _ClaimApplicationScreenState extends State<ClaimApplicationScreen> {
             title: const Text("Details"),
             isActive: _currentStep >= 0,
             state: _currentStep > 0 ? StepState.complete : StepState.indexed,
-            content: Column(
-              children: [
-                // 👇 Show Aadhar Field if Officer is Assisting
-                if (widget.isAssisted) ...[
-                  const Text(
-                    "Officer Assisted Application",
-                    style: TextStyle(fontWeight: FontWeight.bold, color: Colors.blue, fontSize: 16),
-                  ),
-                  const SizedBox(height: 10),
-                  TextField(
-                    controller: _aadharController,
-                    keyboardType: TextInputType.number,
-                    maxLength: 12,
-                    decoration: const InputDecoration(
-                      labelText: "Applicant Aadhar Number *",
-                      border: OutlineInputBorder(),
-                      prefixIcon: Icon(Icons.credit_card),
-                      helperText: "Enter 12-digit Aadhar Number of the applicant",
+            content: Form(
+              key: _formKey, // ✅ Real-time interaction wrapper
+              autovalidateMode: AutovalidateMode.onUserInteraction,
+              child: Column(
+                children: [
+                  if (widget.isAssisted) ...[
+                    const Text(
+                      "Officer Assisted Application",
+                      style: TextStyle(fontWeight: FontWeight.bold, color: Colors.blue, fontSize: 16),
                     ),
+                    const SizedBox(height: 10),
+                    TextFormField(
+                      controller: _aadharController,
+                      keyboardType: TextInputType.number,
+                      maxLength: 12,
+                      validator: _validateAadhar, // ✅ Real-time Aadhar check
+                      decoration: const InputDecoration(
+                        labelText: "Applicant Aadhar Number *",
+                        border: OutlineInputBorder(),
+                        prefixIcon: Icon(Icons.credit_card),
+                      ),
+                    ),
+                    const SizedBox(height: 15),
+                  ],
+                  TextFormField(
+                    controller: _nameController,
+                    validator: _validateName, // ✅ Real-time Name check
+                    decoration: const InputDecoration(labelText: "Full Name *", border: OutlineInputBorder()),
                   ),
                   const SizedBox(height: 15),
+                  TextFormField(
+                    controller: _tribeController,
+                    validator: (val) => val == null || val.isEmpty ? "Required field" : null,
+                    decoration: const InputDecoration(labelText: "Tribe / Community *", border: OutlineInputBorder()),
+                  ),
+                  const SizedBox(height: 15),
+                  TextFormField(
+                    controller: _villageController,
+                    validator: (val) => val == null || val.isEmpty ? "Required field" : null,
+                    decoration: const InputDecoration(labelText: "Village Name *", border: OutlineInputBorder()),
+                  ),
+                  const SizedBox(height: 15),
+                  TextFormField(
+                    controller: _areaController,
+                    keyboardType: TextInputType.number,
+                    validator: _validateArea, // ✅ Real-time 4-Hectare FRA check
+                    decoration: const InputDecoration(
+                      labelText: "Estimated Area (in Hectares) *", 
+                      border: OutlineInputBorder(),
+                      helperText: "FRA Limit: Max 4.0 Hectares",
+                    ),
+                  ),
                 ],
-                TextField(
-                  controller: _nameController,
-                  decoration: const InputDecoration(labelText: "Full Name", border: OutlineInputBorder()),
-                ),
-                const SizedBox(height: 15),
-                TextField(
-                  controller: _tribeController,
-                  decoration: const InputDecoration(labelText: "Tribe / Community", border: OutlineInputBorder()),
-                ),
-                const SizedBox(height: 15),
-                const TextField(
-                  decoration: InputDecoration(labelText: "Village Name", border: OutlineInputBorder()),
-                ),
-              ],
+              ),
             ),
           ),
 
@@ -183,7 +243,7 @@ class _ClaimApplicationScreenState extends State<ClaimApplicationScreen> {
             isActive: _currentStep >= 1,
             state: _currentStep > 1 ? StepState.complete : StepState.indexed,
             content: SizedBox(
-              height: 400, // Fixed height for map inside stepper
+              height: 400, 
               child: Stack(
                 children: [
                   ClipRRect(
@@ -226,7 +286,6 @@ class _ClaimApplicationScreenState extends State<ClaimApplicationScreen> {
                       ],
                     ),
                   ),
-                  // MAP CONTROLS (Undo/Clear)
                   Positioned(
                     top: 10, right: 10,
                     child: Column(
@@ -249,7 +308,6 @@ class _ClaimApplicationScreenState extends State<ClaimApplicationScreen> {
                       ],
                     ),
                   ),
-                  // INSTRUCTION BANNER
                   if (_boundaryPoints.isEmpty)
                     Align(
                       alignment: Alignment.bottomCenter,
@@ -286,13 +344,13 @@ class _ClaimApplicationScreenState extends State<ClaimApplicationScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  _buildReviewRow("Applicant:", _nameController.text.isEmpty ? "Sky" : _nameController.text),
-                  _buildReviewRow("Tribe:", _tribeController.text.isEmpty ? "Irula" : _tribeController.text),
+                  _buildReviewRow("Applicant:", _nameController.text.isEmpty ? "Missing" : _nameController.text),
+                  _buildReviewRow("Tribe:", _tribeController.text.isEmpty ? "Missing" : _tribeController.text),
+                  _buildReviewRow("Area Claimed:", "${_areaController.text} Hectares"),
                   const Divider(),
                   _buildReviewRow("Land Points:", "${_boundaryPoints.length} corners marked"),
-                  _buildReviewRow("Est. Area:", "2.5 Acres (Auto-calc)"),
                   const SizedBox(height: 10),
-                  const Text("Status: Ready to Submit", style: TextStyle(fontWeight: FontWeight.bold, color: Colors.green)),
+                  const Text("Status: Verified & Ready to Submit", style: TextStyle(fontWeight: FontWeight.bold, color: Colors.green)),
                 ],
               ),
             ),

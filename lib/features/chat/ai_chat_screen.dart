@@ -51,7 +51,7 @@ class _AiChatScreenState extends State<AiChatScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text("AI Sahayak (Helper)"),
+        title: const Text("ATLAS AI "),
         backgroundColor: const Color(0xFF1B5E20), // Forest Green
         foregroundColor: Colors.white,
         actions: [
